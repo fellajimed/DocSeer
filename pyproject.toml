@@ -1,0 +1,36 @@
+[project]
+name = "docseer"
+version = "0.1.0"
+description = "DocSeer: Summarize and understand your documents at a glance."
+authors = [
+    {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
+]
+dependencies = ["transformers>=4.52.1", "rich>=14.0.0", "PyMuPDF>=1.25.5", "types-requests>=2.32.0.20250515"]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.pdm.scripts]
+test = "pytest tests"
+type-check = "mypy src"
+
+[tool.pdm]
+distribution = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+follow_untyped_imports = true
+show_error_codes = true
+warn_unused_ignores = true
