@@ -1,1 +1,3 @@
 # DocSeer
+
+install torch

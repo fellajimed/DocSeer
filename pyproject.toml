@@ -5,7 +5,7 @@ description = "DocSeer: Summarize and understand your documents at a glance."
 authors = [
     {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
 ]
-dependencies = ["transformers>=4.52.1", "rich>=14.0.0", "PyMuPDF>=1.25.5", "types-requests>=2.32.0.20250515"]
+dependencies = ["transformers>=4.52.1", "rich>=14.0.0", "PyMuPDF>=1.25.5", "types-requests>=2.32.0.20250515", "langchain>=0.3.25", "sentence-transformers>=4.1.0", "faiss-cpu>=1.11.0"]
 requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}

@@ -4,7 +4,7 @@ import argparse
 
 from .agent import DocAgent
 from .formatter import TerminalIO
-from .utils import TextExtractor
+from .utils import TextExtractor, get_device
 
 
 def answer_one_query(agent: DocAgent, console: TerminalIO) -> None:
@@ -14,8 +14,8 @@ def answer_one_query(agent: DocAgent, console: TerminalIO) -> None:
             os.system('cls' if os.name == 'nt' else 'clear')
             return
     except (KeyboardInterrupt, EOFError):
-        res = input("\nDo you really want to exit ([y]/n)? ")
-        if res in ["", "y", "yes"]:
+        res = input("\nDo you really want to exit ([y]/n)? ").lower()
+        if res in ("", "y", "yes"):
             console.answer("Hope you had fun :) Bye Bye!")
             sys.exit()
         else:
@@ -46,11 +46,19 @@ def main() -> None:
         return
 
     console = TerminalIO(is_table=True)
-    text = TextExtractor(url=args.url, fname=args.file_path).text
-    agent = DocAgent(text=text)
+
+    if args.arxiv_id is not None:
+        args.url = f"https://arxiv.org/pdf/{args.arxiv_id}"
+
+    devive = get_device('cpu')
+    text_extractor = TextExtractor(url=args.url, fname=args.file_path)
+
+    agent = DocAgent(text=text_extractor.text,
+                     chunks=text_extractor.chunks,
+                     device=devive)
 
     if args.summarize:
-        response = "Here is a summary of the pdf:\n"
+        response = f"Here is a summary of the pdf:\n{'-'*(console.width-4)}\n"
         response += agent.summarize()
         console.answer(response)
 
