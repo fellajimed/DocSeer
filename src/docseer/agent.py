@@ -1,24 +1,24 @@
-import faiss
 import torch
 import numpy as np
+from numpy.typing import NDArray
 from operator import itemgetter
-from functools import partial
 from tqdm import tqdm
+from faiss import IndexFlatIP, normalize_L2
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer
 
 
 class FindClosest:
-    def __init__(self, embeddings: np.ndarray) -> None:
-        # normalize the weight vector for cosine similarity
-        faiss.normalize_L2(embeddings)
+    def __init__(self, embeddings: NDArray[np.float64]) -> None:
+        # normalize the embeddings vector for cosine similarity
+        normalize_L2(embeddings)
 
-        self.index = faiss.IndexFlatIP(embeddings.shape[-1])
+        self.index = IndexFlatIP(embeddings.shape[-1])
         self.index.add(embeddings)
 
-    def __call__(self, input_embedding: np.ndarray, top_k: int = 3,
-                 ) -> list[int]:
-        faiss.normalize_L2(input_embedding)
+    def __call__(self, input_embedding: NDArray[np.float64],
+                 top_k: int = 3) -> list[int]:
+        normalize_L2(input_embedding)
         return self.index.search(input_embedding, top_k)[1][0]
 
 
@@ -33,13 +33,16 @@ class DocAgent:
         self.chunks = chunks
         self.device = device
 
-        self.encoder = partial(SentenceTransformer(self.enc_model).encode,
-                               convert_to_numpy=True)
+        self.encoder = SentenceTransformer(self.enc_model)
         self.question_answerer = pipeline("question-answering",
                                           model=self.qa_model,
                                           device=device)
-        self.embeddings = self.encoder(self.chunks)
+        self.embeddings = self._encode(self.chunks)
         self.indexer = FindClosest(self.embeddings)
+
+    @torch.no_grad()
+    def _encode(self, text: str | list[str]) -> NDArray[np.float64]:
+        return self.encoder.encode(text, convert_to_numpy=True)
 
     @torch.no_grad()
     def _summarizer(self, text: str) -> str:
@@ -56,7 +59,7 @@ class DocAgent:
 
     @torch.no_grad()
     def retrieve(self, query: str) -> str:
-        query_embedding = self.encoder(query).reshape(1, -1)
+        query_embedding = self._encode(query).reshape(1, -1)
         indices = self.indexer(query_embedding)
         closest_chunks = itemgetter(*indices)(self.chunks)
 
