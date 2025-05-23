@@ -60,8 +60,6 @@ class DocAgent:
         indices = self.indexer(query_embedding)
         closest_chunks = itemgetter(*indices)(self.chunks)
 
-        print(closest_chunks)
-
         return self.question_answerer(
             question=query, context="\n".join(closest_chunks)
         )['answer']
