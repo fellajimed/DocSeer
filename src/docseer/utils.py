@@ -20,7 +20,7 @@ def get_device(device: str | None = None) -> torch.device:
 class TextExtractor:
     def __init__(self, *, url: str | None = None,
                  fname: str | os.PathLike[str] | None = None,
-                 chunk_size=100, chunk_overlap=100) -> None:
+                 chunk_size: int = 100, chunk_overlap: int = 100) -> None:
         # XOR operator
         if not ((url is not None) ^ (fname is not None)):
             raise ValueError('Either `url` or `fname` should be specified:',
