@@ -2,6 +2,7 @@
 
 **DocSeer** is an intelligent PDF analysis tool that allows you to **summarize** documents and **ask questions** about their contents using natural language. It leverages modern language models to provide fast, accurate insights from complex files — no more endless scrolling or manual skimming.
 
+> **Seer**: One who perceives hidden knowledge—interpreting and revealing insights beyond the surface.
 ---
 
 ## ✨ Features
