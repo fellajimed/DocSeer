@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:b6d1a269933bed88d67fbd1369bbc44e7ea867518188d21311e37f3dc0b52f6c"
+content_hash = "sha256:767aac57f6b17cb28f74e40a512a1d30a53cbe18b1b3e3a29265aaa6fb596034"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -859,6 +859,17 @@ groups = ["default"]
 files = [
     {file = "packaging-24.2-py3-none-any.whl", hash = "sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759"},
     {file = "packaging-24.2.tar.gz", hash = "sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f"},
+]
+
+[[package]]
+name = "pdm-plugin-torch"
+version = "23.4.0"
+requires_python = ">=3.8"
+summary = "A plugin to help installing torch versions"
+groups = ["default"]
+files = [
+    {file = "pdm_plugin_torch-23.4.0-py3-none-any.whl", hash = "sha256:bc60752f7ddafe002a7a5ae1cc0df39d3f3bee96866d3384274d63aeb277f2b4"},
+    {file = "pdm_plugin_torch-23.4.0.tar.gz", hash = "sha256:69cd8aeada2890d138ab717f94b2c23862e2116433d096eff0638e1357a8bfe5"},
 ]
 
 [[package]]
