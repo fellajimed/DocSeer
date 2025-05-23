@@ -18,6 +18,10 @@ build-backend = "setuptools.build_meta"
 test = "pytest tests"
 type-check = "mypy src"
 
+[project.scripts]
+docseer = "docseer.__main__:main"
+
+
 [tool.pdm]
 distribution = true
 
