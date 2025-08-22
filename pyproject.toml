@@ -18,6 +18,7 @@ dependencies = [
     "hf-xet>=1.1.2",
     "pdm-plugin-torch>=23.4.0",
     "docling>=2.46.0",
+    "alive-progress>=3.3.0",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
