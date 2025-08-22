@@ -14,6 +14,28 @@
 
 ---
 
+## ⚙️ Default Behavior
+
+By default, **DocSeer** relies on [**Ollama**](https://ollama.com/) and **local language models** for processing.  
+Make sure **Ollama** is installed and any required models are available locally to ensure full functionality.
+
+
+### 🧠 Models Used
+
+DocSeer uses the following models via Ollama:
+
+- [`mxbai-embed-large`](https://ollama.com/library/mxbai-embed-large) — for high-quality embedding and semantic search  
+- [`llama3`](https://ollama.com/library/llama3) — for natural language understanding and generation (QA & summarization)
+
+To get started, run:
+
+```bash
+ollama pull mxbai-embed-large
+ollama pull llama3
+```
+
+---
+
 ## 🚀 Installation
 Within the project directory, `docseer` and its dependencies could be easily installed:
 ```bash
@@ -32,15 +54,16 @@ eval $(pdm venv activate)
 docseer --help
 ```
 
-```bash
-usage: DocSeer [-h] [-u URL] [-f FILE_PATH] [-a ARXIV_ID] [-S] [-I]
+```
+usage: DocSeer [-h] [-u URL] [-f FILE_PATH] [-a ARXIV_ID] [-k TOP_K] [-Q QUERY] [-I]
 
 options:
   -h, --help            show this help message and exit
   -u URL, --url URL
   -f FILE_PATH, --file-path FILE_PATH
   -a ARXIV_ID, --arxiv-id ARXIV_ID
-  -S, --summarize
+  -k TOP_K, --top-k TOP_K
+  -Q QUERY, --query QUERY
   -I, --interactive
 ```
 

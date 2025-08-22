@@ -2,12 +2,12 @@ import os
 import sys
 import argparse
 
-from .agent import DocAgent
+from .agent import Agent, LocalDocAgent
 from .formatter import TerminalIO
-from .utils import TextExtractor, get_device
+from .processing import TextEmbedderDB
 
 
-def answer_one_query(agent: DocAgent, console: TerminalIO) -> None:
+def answer_one_query(agent: Agent, console: TerminalIO) -> None:
     try:
         query = console.ask()
         if query == "clear":
@@ -16,7 +16,7 @@ def answer_one_query(agent: DocAgent, console: TerminalIO) -> None:
     except (KeyboardInterrupt, EOFError):
         res = input("\nDo you really want to exit ([y]/n)? ").lower()
         if res in ("", "y", "yes"):
-            console.answer("Hope you had fun :) Bye Bye!")
+            console.answer("Bye Bye!")
             sys.exit()
         else:
             return
@@ -35,14 +35,17 @@ def main() -> None:
         '-a', '--arxiv-id', type=str, default=None,
     )
     parser.add_argument(
-        '-S', '--summarize', action='store_true',
+        '-k', '--top-k', type=int, default=5,
+    )
+    parser.add_argument(
+        '-Q', '--query', type=str, default=None,
     )
     parser.add_argument(
         '-I', '--interactive', action='store_true',
     )
     args = parser.parse_args()
 
-    if (not args.summarize) and (not args.interactive):
+    if (args.query is None) and (not args.interactive):
         return
 
     console = TerminalIO(is_table=True)
@@ -50,21 +53,16 @@ def main() -> None:
     if args.arxiv_id is not None:
         args.url = f"https://arxiv.org/pdf/{args.arxiv_id}"
 
-    devive = get_device('cpu')
-    text_extractor = TextExtractor(url=args.url, fname=args.file_path)
+    text_embedder = TextEmbedderDB(
+        url=args.url, fname=args.file_path, topk=args.top_k)
 
-    agent = DocAgent(text=text_extractor.text,
-                     chunks=text_extractor.chunks,
-                     device=devive)
-
-    if args.summarize:
-        response = f"Here is a summary of the pdf:\n{'-'*(console.width-4)}\n"
-        response += agent.summarize()
-        console.answer(response)
+    agent = LocalDocAgent(text_embedder)
 
     if args.interactive:
         while True:
             answer_one_query(agent, console)
+    elif args.query is not None:
+        console.answer(agent.retrieve(args.query))
 
 
 if __name__ == "__main__":
