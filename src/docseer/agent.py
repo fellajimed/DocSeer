@@ -21,8 +21,10 @@ class LocalDocAgent(Agent):
     def __init__(self, text_embedder):
         self.template = (
             "You are an exeprt in answering questions about reseach papers."
-            "\n\nHere are some relevant context: {context}"
-            "\n\nHere is the question to answer: {question}"
+            "\n\nFor context, here are some relevant information"
+            "from the documents: {context}."
+            "\nA document is defined by its file name!\n\n"
+            "Here is the question to answer based on the documents: {question}"
         )
         self.model = OllamaLLM(model="llama3.2")
         self.prompt = ChatPromptTemplate.from_template(self.template)
