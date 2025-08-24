@@ -1,6 +1,7 @@
 import os
 import requests
 import pymupdf
+from rich.console import Console
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from docling.document_converter import DocumentConverter
@@ -22,7 +23,9 @@ class TextEmbedderDB:
                              f'{url=} - {fname=}')
 
         self.get_document(url, fname)
-        self.chunks = HybridChunker().chunk(self._document)
+
+        with Console().status("Chunking the document ...", spinner='dots'):
+            self.chunks = HybridChunker().chunk(self._document)
 
         self.model_embeddeings = OllamaEmbeddings(model="mxbai-embed-large")
 
@@ -61,9 +64,9 @@ class TextEmbedderDB:
 
         assert fname is not None
 
-        converter = DocumentConverter()
-
-        self._document = converter.convert(fname).document
+        with Console().status("Converting the document ...", spinner='dots'):
+            converter = DocumentConverter()
+            self._document = converter.convert(fname).document
 
         # delete the temporary file
         if url is not None:

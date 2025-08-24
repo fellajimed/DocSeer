@@ -5,21 +5,10 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:c668e3cd2cf68e75d33b8022753ea98e3ea46d6d91c0a103a8b143eaeb5cc024"
+content_hash = "sha256:8bad147039837416a8e853bd335b219fef6190e4dc435c4388c072c2f6465c49"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
-
-[[package]]
-name = "about-time"
-version = "4.2.1"
-requires_python = ">=3.7, <4"
-summary = "Easily measure timing and throughput of code blocks, with beautiful human friendly representations."
-groups = ["default"]
-files = [
-    {file = "about-time-4.2.1.tar.gz", hash = "sha256:6a538862d33ce67d997429d14998310e1dbfda6cb7d9bbfbf799c4709847fece"},
-    {file = "about_time-4.2.1-py3-none-any.whl", hash = "sha256:8bbf4c75fe13cbd3d72f49a03b02c5c7dca32169b6d49117c257e7eb3eaee341"},
-]
 
 [[package]]
 name = "accelerate"
@@ -39,21 +28,6 @@ dependencies = [
 files = [
     {file = "accelerate-1.10.0-py3-none-any.whl", hash = "sha256:260a72b560e100e839b517a331ec85ed495b3889d12886e79d1913071993c5a3"},
     {file = "accelerate-1.10.0.tar.gz", hash = "sha256:8270568fda9036b5cccdc09703fef47872abccd56eb5f6d53b54ea5fb7581496"},
-]
-
-[[package]]
-name = "alive-progress"
-version = "3.3.0"
-requires_python = "<4,>=3.9"
-summary = "A new kind of Progress Bar, with real-time throughput, ETA, and very cool animations!"
-groups = ["default"]
-dependencies = [
-    "about-time==4.2.1",
-    "graphemeu==0.7.2",
-]
-files = [
-    {file = "alive-progress-3.3.0.tar.gz", hash = "sha256:457dd2428b48dacd49854022a46448d236a48f1b7277874071c39395307e830c"},
-    {file = "alive_progress-3.3.0-py3-none-any.whl", hash = "sha256:63dd33bb94cde15ad9e5b666dbba8fedf71b72a4935d6fb9a92931e69402c9ff"},
 ]
 
 [[package]]
@@ -668,17 +642,6 @@ dependencies = [
 files = [
     {file = "googleapis_common_protos-1.70.0-py3-none-any.whl", hash = "sha256:b8bfcca8c25a2bb253e0e0b0adaf8c00773e5e6af6fd92397576680b807e0fd8"},
     {file = "googleapis_common_protos-1.70.0.tar.gz", hash = "sha256:0e1b44e0ea153e6594f9f394fef15193a68aaaea2d843f83e2742717ca753257"},
-]
-
-[[package]]
-name = "graphemeu"
-version = "0.7.2"
-requires_python = ">=3.7"
-summary = "Unicode grapheme helpers"
-groups = ["default"]
-files = [
-    {file = "graphemeu-0.7.2-py3-none-any.whl", hash = "sha256:1444520f6899fd30114fc2a39f297d86d10fa0f23bf7579f772f8bc7efaa2542"},
-    {file = "graphemeu-0.7.2.tar.gz", hash = "sha256:42bbe373d7c146160f286cd5f76b1a8ad29172d7333ce10705c5cc282462a4f8"},
 ]
 
 [[package]]

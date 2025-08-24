@@ -1,7 +1,6 @@
 import os
 import sys
 import argparse
-from alive_progress import alive_bar
 
 from .agent import Agent, LocalDocAgent
 from .formatter import TerminalIO
@@ -54,9 +53,8 @@ def main() -> None:
     if args.arxiv_id is not None:
         args.url = f"https://arxiv.org/pdf/{args.arxiv_id}"
 
-    with alive_bar(unknown='waves'):
-        text_embedder = TextEmbedderDB(
-            url=args.url, fname=args.file_path, topk=args.top_k)
+    text_embedder = TextEmbedderDB(
+        url=args.url, fname=args.file_path, topk=args.top_k)
 
     agent = LocalDocAgent(text_embedder)
 
