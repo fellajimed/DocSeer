@@ -7,8 +7,8 @@ from rich.table import Table
 
 class TerminalIO:
     console = Console()
-    question_style = "[bold green]"
-    print_style = Style(color="cyan", bold=True)
+    question_style = "[bold slate_blue1]"
+    print_style = Style(color="sea_green2", bold=True)
 
     def __init__(self, is_table: bool = True,
                  width: int | None = None) -> None:
