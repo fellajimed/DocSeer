@@ -55,13 +55,13 @@ docseer --help
 ```
 
 ```
-usage: DocSeer [-h] [-u URL] [-f FILE_PATH] [-a ARXIV_ID] [-k TOP_K] [-Q QUERY] [-I]
+usage: DocSeer [-h] [-u [URL ...]] [-f [FILE_PATH ...]] [-a [ARXIV_ID ...]] [-k TOP_K] [-Q QUERY] [-I]
 
 options:
   -h, --help            show this help message and exit
-  -u URL, --url URL
-  -f FILE_PATH, --file-path FILE_PATH
-  -a ARXIV_ID, --arxiv-id ARXIV_ID
+  -u [URL ...], --url [URL ...]
+  -f [FILE_PATH ...], --file-path [FILE_PATH ...]
+  -a [ARXIV_ID ...], --arxiv-id [ARXIV_ID ...]
   -k TOP_K, --top-k TOP_K
   -Q QUERY, --query QUERY
   -I, --interactive
