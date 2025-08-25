@@ -5,7 +5,8 @@ import pymupdf
 from typing import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+from rich.progress import (Progress, SpinnerColumn, BarColumn,
+                           MofNCompleteColumn, TextColumn)
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from docling.document_converter import DocumentConverter
@@ -41,10 +42,11 @@ def download_all(urls: list[str], max_workers=MAX_WORKERS):
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
+        MofNCompleteColumn(),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
     ) as progress:
         task_progress = progress.add_task(
-            "[cyan]Downloading urls...", total=len(urls))
+            "[cyan]Downloading urls ...", total=len(urls))
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(download_url, url) for url in urls]
@@ -123,10 +125,11 @@ class TextEmbedderDB:
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
+            MofNCompleteColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         ) as progress:
             task_progress = progress.add_task(
-                "[cyan]Converting and chunking the documents...",
+                "[cyan]Converting and chunking the documents ...",
                 total=len(self.files))
 
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
