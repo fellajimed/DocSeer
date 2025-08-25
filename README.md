@@ -25,27 +25,63 @@ Make sure **Ollama** is installed and any required models are available locally 
 DocSeer uses the following models via Ollama:
 
 - [`mxbai-embed-large`](https://ollama.com/library/mxbai-embed-large) — for high-quality embedding and semantic search  
-- [`llama3`](https://ollama.com/library/llama3) — for natural language understanding and generation (QA & summarization)
+- [`llama3.2`](https://ollama.com/library/llama3.2) — for natural language understanding and generation (QA & summarization)
 
 To get started, run:
 
 ```bash
 ollama pull mxbai-embed-large
-ollama pull llama3
+ollama pull llama3.2
 ```
 
 ---
 
 ## 🚀 Installation
-Within the project directory, `docseer` and its dependencies could be easily installed:
-```bash
-pdm install
-```
 
-Activate the environment:
+### 📦 Install via pip
+
+To install the latest released version of `docseer` from PyPI:
+
 ```bash
-eval $(pdm venv activate)
-```
+pip install docseer
+````
+
+This method is recommended if you simply want to use `docseer` as a library or CLI tool without modifying the source code.
+
+---
+
+### 🔧 Local Development Installation
+
+To install `docseer` locally for development:
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/fellajimed/docseer.git
+   cd docseer
+   ```
+
+2. Install dependencies using [PDM](https://pdm-project.org/en/latest/):
+
+   ```bash
+   pdm install
+   ```
+
+3. Activate the virtual environment:
+
+   ```bash
+   eval "$(pdm venv activate)"
+   ```
+
+This method is ideal for contributing to the project or running `docseer` from source.
+
+---
+
+> 💡 **Note:** Make sure you have [PDM](https://pdm-project.org/en/latest/#installation) installed. You can install it with:
+>
+> ```bash
+> pip install pdm
+> ```
 ---
 
 ## 🛠 CLI tool
