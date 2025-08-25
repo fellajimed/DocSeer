@@ -67,7 +67,14 @@ def main() -> None:
         elif args.query is not None:
             console.answer(agent.retrieve(args.query))
     finally:
-        shutil.rmtree(text_embedder.path_db, ignore_errors=True)
+        # clean-ups: temporary files and database
+        for (is_tmp, fpath) in getattr(text_embedder, 'files', []):
+            if is_tmp and os.path.exists(fpath):
+                os.remove(fpath)
+
+        path_db = getattr(text_embedder, 'path_db', None)
+        if path_db is not None:
+            shutil.rmtree(path_db, ignore_errors=True)
 
 
 if __name__ == "__main__":

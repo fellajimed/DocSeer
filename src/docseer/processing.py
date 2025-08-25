@@ -116,10 +116,13 @@ class TextEmbedderDB:
         return ids, documents
 
     def _format_chunk(self, id: str, index: int, fpath: str, chunk):
+        heading = (chunk.meta.headings
+                   if hasattr(chunk.meta, 'headings')
+                   else "Unknown Heading")
+        if isinstance(heading, Iterable):
+            heading = ", ".join(heading)
         metadata = {
-            "heading": ", ".join(chunk.meta.headings)
-                       if hasattr(chunk.meta, 'headings')
-                       else "Unknown Heading",
+            "heading": heading,
             "file_index": index,
             "file_name": fpath,
         }
