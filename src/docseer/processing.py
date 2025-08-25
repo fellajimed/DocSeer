@@ -15,6 +15,10 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from flashrank import Ranker
+from langchain_community.document_compressors import FlashrankRerank
+from langchain.retrievers import ContextualCompressionRetriever
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -63,13 +67,14 @@ class TextEmbedderDB:
     def __init__(self, *, url: Iterable[str] | None = None,
                  fname: Iterable[str | os.PathLike[str]] | None = None,
                  path_db: str | os.PathLike[str] | None = None,
-                 topk: int = 5) -> None:
+                 topk: int = 5, use_reranker: bool = True) -> None:
         if not ((url is not None and len(url) > 0) or
                 (fname is not None and len(fname) > 0)):
             raise ValueError('Either `url` or `fname` should be specified:',
                              f'{url=} - {fname=}')
 
         self.topk = topk
+        self.use_reranker = use_reranker
         self.model_embeddings = OllamaEmbeddings(model="mxbai-embed-large")
 
         self.prepare_files(url, fname)
@@ -77,6 +82,8 @@ class TextEmbedderDB:
         with Console().status('[cyan]Storing embeddings in the database ...',
                               spinner='dots'):
             self.init_db(path_db)
+
+        self.init_retriever()
 
     def prepare_files(self, urls: list[str] | None,
                       fname: list[str | os.PathLike[str]] | None):
@@ -144,9 +151,19 @@ class TextEmbedderDB:
                     self.documents.extend(documents)
                     progress.update(task_progress, advance=1)
 
-    @property
-    def retriever(self):
-        return self.vector_db.as_retriever(search_kwargs={"k": self.topk})
+    def init_retriever(self):
+        base_retriever = self.vector_db.as_retriever(
+            search_kwargs={"k": self.topk})
+
+        if self.use_reranker:
+            compressor = FlashrankRerank(
+                client=Ranker(model_name="ms-marco-MiniLM-L-12-v2",
+                              log_level='WARNING'),
+                top_n=self.topk // 2)
+            self.retriever = ContextualCompressionRetriever(
+                base_compressor=compressor, base_retriever=base_retriever)
+        else:
+            self.retriever = base_retriever
 
     def invoke(self, query: str) -> str:
         retrieved_docs = self.retriever.invoke(query)

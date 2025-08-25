@@ -36,7 +36,7 @@ def main() -> None:
         '-a', '--arxiv-id', type=str, nargs='*', default=None,
     )
     parser.add_argument(
-        '-k', '--top-k', type=int, default=5,
+        '-k', '--top-k', type=int, default=10,
     )
     parser.add_argument(
         '-Q', '--query', type=str, default=None,
