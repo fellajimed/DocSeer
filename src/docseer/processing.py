@@ -20,6 +20,9 @@ from langchain_community.document_compressors import FlashrankRerank
 from langchain.retrievers import ContextualCompressionRetriever
 
 import warnings
+from transformers import logging
+
+logging.set_verbosity_error()
 warnings.filterwarnings("ignore")
 
 # default value for max_workers
@@ -179,7 +182,7 @@ class TextEmbedderDB:
             heading = metadata.get("heading", "Unknown Heading")
 
             formatted_docs.append(
-                f"### Chunk {i}\n"
+                f"### Chunk ID {doc.id}\n"
                 f" **File index:** {file_index}\n"
                 f" **File path:** {file_name}\n"
                 f" **Heading:** {heading}\n"

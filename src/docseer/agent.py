@@ -3,6 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from operator import itemgetter
 from tqdm import tqdm
+from rich.console import Console
 from faiss import IndexFlatIP, normalize_L2
 from transformers import pipeline
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -37,8 +38,9 @@ class LocalDocAgent(Agent):
         self.text_embedder = text_embedder
 
     def retrieve(self, query: str) -> str:
-        context = self.text_embedder.invoke(query)
-        return self.chain.invoke({"context": context, "question": query})
+        with Console().status('', spinner='dots'):
+            context = self.text_embedder.invoke(query)
+            return self.chain.invoke({"context": context, "question": query})
 
 
 class DocAgent(Agent):
