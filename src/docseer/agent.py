@@ -9,7 +9,8 @@ from transformers import pipeline
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 from langchain_ollama.llms import OllamaLLM
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 
 
 class Agent(ABC):
@@ -31,16 +32,28 @@ class LocalDocAgent(Agent):
         self.model = OllamaLLM(model="llama3.2")
         self.prompt = ChatPromptTemplate([
             ("system", self.template),
+            MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
         ])
         self.chain = self.prompt | self.model
+
+        self.chat_history = []
 
         self.text_embedder = text_embedder
 
     def retrieve(self, query: str) -> str:
         with Console().status('', spinner='dots'):
             context = self.text_embedder.invoke(query)
-            return self.chain.invoke({"context": context, "question": query})
+            response = self.chain.invoke({
+                "context": context,
+                "question": query,
+                "chat_history": self.chat_history,
+            })
+            self.chat_history.extend([
+                HumanMessage(content=query),
+                AIMessage(content=response),
+            ])
+            return response
 
 
 class DocAgent(Agent):
