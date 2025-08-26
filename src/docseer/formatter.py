@@ -1,4 +1,5 @@
 import shutil
+from rich.markdown import Markdown
 from rich.console import Console
 from rich.style import Style
 from rich.prompt import Prompt
@@ -8,7 +9,7 @@ from rich.table import Table
 class TerminalIO:
     console = Console()
     question_style = "[bold slate_blue1]"
-    print_style = Style(color="sea_green2", bold=True)
+    print_style = Style(color="sea_green2", bold=False)
 
     def __init__(self, is_table: bool = True,
                  width: int | None = None) -> None:
@@ -22,6 +23,7 @@ class TerminalIO:
         return Prompt.ask(self.input_msg, show_default=False)
 
     def answer(self, response: str) -> None:
+        response = Markdown(response)
         if self.is_table:
             table = Table(show_header=False, width=self.width)
             table.add_row(response)
