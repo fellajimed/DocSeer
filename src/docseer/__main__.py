@@ -3,12 +3,12 @@ import sys
 import shutil
 import argparse
 
-from .agent import Agent, LocalDocAgent
+from . import agents as my_agents
 from .formatter import TerminalIO
 from .processing import TextEmbedderDB
 
 
-def answer_one_query(agent: Agent, console: TerminalIO) -> None:
+def answer_one_query(agent: my_agents.Agent, console: TerminalIO) -> None:
     try:
         query = console.ask()
         if query == "clear":
@@ -33,6 +33,9 @@ def main() -> None:
         '-f', '--file-path', type=str, nargs='*', default=[],
     )
     parser.add_argument(
+        '-s', '--source', type=str, nargs='*', default=[],
+    )
+    parser.add_argument(
         '-a', '--arxiv-id', type=str, nargs='*', default=None,
     )
     parser.add_argument(
@@ -49,17 +52,21 @@ def main() -> None:
     if (args.query is None) and (not args.interactive):
         return
 
-    if args.arxiv_id is not None:
-        args.url += [f"https://arxiv.org/pdf/{arxiv_id}"
-                     for arxiv_id in args.arxiv_id]
+    # TODO: remove this line!
+    args.source += args.file_path + args.url
 
+    if args.arxiv_id is not None:
+        args.source += [f"https://arxiv.org/pdf/{arxiv_id}"
+                        for arxiv_id in args.arxiv_id]
+
+    text_embedder = None
     try:
         console = TerminalIO(is_table=True)
 
         text_embedder = TextEmbedderDB(
-            url=args.url, fname=args.file_path, topk=args.top_k)
+            source=args.source, topk=args.top_k)
 
-        agent = LocalDocAgent(text_embedder)
+        agent = my_agents.LocalDocReActAgent(text_embedder)
 
         if args.interactive:
             while True:
@@ -67,11 +74,7 @@ def main() -> None:
         elif args.query is not None:
             console.answer(agent.retrieve(args.query))
     finally:
-        # clean-ups: temporary files and database
-        for (is_tmp, fpath) in getattr(text_embedder, 'files', []):
-            if is_tmp and os.path.exists(fpath):
-                os.remove(fpath)
-
+        # clean-ups: database
         path_db = getattr(text_embedder, 'path_db', None)
         if path_db is not None:
             shutil.rmtree(path_db, ignore_errors=True)

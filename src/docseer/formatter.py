@@ -1,9 +1,8 @@
-import shutil
 from rich.markdown import Markdown
 from rich.console import Console
 from rich.style import Style
 from rich.prompt import Prompt
-from rich.table import Table
+from rich.panel import Panel
 
 
 class TerminalIO:
@@ -15,9 +14,7 @@ class TerminalIO:
                  width: int | None = None) -> None:
         self.input_msg = f"{self.question_style}>>> question"
         self.is_table = is_table
-        # use terminal' width if width is None
-        self.width = (shutil.get_terminal_size((100, 20)).columns
-                      if width is None else width)
+        self.width = width
 
     def ask(self) -> str:
         return Prompt.ask(self.input_msg, show_default=False)
@@ -25,9 +22,9 @@ class TerminalIO:
     def answer(self, response: str) -> None:
         response = Markdown(response)
         if self.is_table:
-            table = Table(show_header=False, width=self.width)
-            table.add_row(response)
-            self.console.print(table, style=self.print_style)
+            self.console.print(Panel(
+                response, style=self.print_style,
+                width=self.width, expand=self.width is None))
         else:
             self.console.print(response, style=self.print_style)
 

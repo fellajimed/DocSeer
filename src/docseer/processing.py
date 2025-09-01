@@ -4,7 +4,6 @@ import requests
 import pymupdf
 from typing import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from rich.console import Console
 from rich.progress import (Progress, SpinnerColumn, BarColumn,
                            MofNCompleteColumn, TextColumn)
 from pathlib import Path
@@ -18,6 +17,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from flashrank import Ranker
 from langchain_community.document_compressors import FlashrankRerank
 from langchain.retrievers import ContextualCompressionRetriever
+
+from .utils import get_sitemap_urls
 
 import warnings
 from transformers import logging
@@ -67,71 +68,82 @@ def download_all(urls: list[str], max_workers=MAX_WORKERS):
 
 
 class TextEmbedderDB:
-    def __init__(self, *, url: Iterable[str] | None = None,
+    def __init__(self, source: list[str | os.PathLike[str]],
+                 *, url: Iterable[str] | None = None,
                  fname: Iterable[str | os.PathLike[str]] | None = None,
                  path_db: str | os.PathLike[str] | None = None,
                  topk: int = 5, use_reranker: bool = True) -> None:
-        if not ((url is not None and len(url) > 0) or
-                (fname is not None and len(fname) > 0)):
-            raise ValueError('Either `url` or `fname` should be specified:',
-                             f'{url=} - {fname=}')
+        if not (source is not None and len(source) > 0):
+            raise ValueError('source should not be None or an empty list')
 
+        self.source = source
         self.topk = topk
         self.use_reranker = use_reranker
         self.model_embeddings = OllamaEmbeddings(model="mxbai-embed-large")
 
-        self.prepare_files(url, fname)
-        self.get_documents()
-        with Console().status('[cyan]Storing embeddings in the database ...',
-                              spinner='dots'):
-            self.init_db(path_db)
-
+        self.init_db(path_db)
+        self.prepare_source()
+        self.process_documents()
         self.init_retriever()
 
-    def prepare_files(self, urls: list[str] | None,
-                      fname: list[str | os.PathLike[str]] | None):
-        self.files = []
-        if fname is not None:
-            is_tmp = False
-            for f in fname:
-                self.files.append((is_tmp, f))
+    def prepare_source(self):
+        sitemap_urls = []
 
-        if urls is not None and len(urls) > 0:
-            is_tmp = True
-            for f in download_all(urls):
-                self.files.append((is_tmp, f))
+        for (i, source) in enumerate(self.source[:]):
+            if str(source).endswith('/sitemap.xml'):
+                self.source.pop(i)
+                try:
+                    urls = get_sitemap_urls(source)
+                    sitemap_urls.extend(urls)
+                except Exception:
+                    print("Could not extract urls from:", source)
 
-    def _get_document(self, index: int, is_tmp: bool,
-                      fpath: str | os.PathLike[str]):
-        document = DocumentConverter().convert(fpath).document
+        if len(sitemap_urls) > 0:
+            print('Found URLs in the sitemaps.')
+        self.source.extend(sitemap_urls)
+
+    def _process_document(self, index: int,
+                          source: str | os.PathLike[str]) -> None:
+        document = DocumentConverter().convert(source).document
         chunks = HybridChunker().chunk(document)
-
-        if is_tmp:
-            os.remove(fpath)
 
         ids = []
         documents = []
+        title = None
         for i, chunk in enumerate(chunks):
             id = f"{index}-{i}"
             ids.append(id)
-            documents.append(self._format_chunk(id, index, str(fpath), chunk))
+            title, doc = self._format_chunk(id, index, chunk, title)
+            documents.append(doc)
 
-        return ids, documents
+        self.vector_db.add_documents(ids=ids, documents=documents)
 
-    def _format_chunk(self, id: str, index: int, fpath: str, chunk):
+    def _format_chunk(self, id: str, index: int,
+                      chunk, title: str | None):
         heading = (chunk.meta.headings
                    if hasattr(chunk.meta, 'headings')
                    else "Unknown Heading")
         if isinstance(heading, Iterable):
             heading = ", ".join(heading)
-        metadata = {
-            "heading": heading,
-            "file_index": index,
-            "file_name": fpath,
-        }
-        return Document(page_content=chunk.text, metadata=metadata, id=id)
+        if title is None:
+            # NOTE: heuristic -> setting the title to be the 1st heading
+            title = heading
 
-    def get_documents(self) -> None:
+        page_numbers = ', '.join(sorted(list(set(
+            str(p.page_no) for item in chunk.meta.doc_items for p in item.prov
+        ))))
+
+        metadata = {
+            "title": title,
+            "heading": heading,
+            "filename": chunk.meta.origin.filename,
+            "page_numbers": page_numbers,
+            "file_index": index,
+        }
+        doc = Document(page_content=chunk.text, metadata=metadata, id=id)
+        return title, doc
+
+    def process_documents(self) -> None:
         self.ids = []
         self.documents = []
         with Progress(
@@ -142,20 +154,27 @@ class TextEmbedderDB:
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         ) as progress:
             task_progress = progress.add_task(
-                "[cyan]Converting and chunking the documents ...",
-                total=len(self.files))
+                "[cyan]Processing the documents ...",
+                total=len(self.source))
 
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 futures = {
-                    executor.submit(self._get_document, i, *args): i
-                    for (i, args) in enumerate(self.files)
+                    executor.submit(self._process_document, i, s): i
+                    for (i, s) in enumerate(self.source)
                 }
 
-                for future in as_completed(futures):
-                    ids, documents = future.result()
-                    self.ids.extend(ids)
-                    self.documents.extend(documents)
+                for _ in as_completed(futures):
+                    # ids, documents = future.result()
                     progress.update(task_progress, advance=1)
+
+    def add_new_document(self, url: str | None = None,
+                         fname: str | os.PathLike[str] | None = None):
+        if not ((url is not None) ^ (fname is not None)):
+            raise ValueError('Either `url` or `fpath` should be specified:',
+                             f'{url=} - {fname=}')
+        _source = fname or url
+        self.source.append(_source)
+        self._process_document(len(self.source), _source)
 
     def init_retriever(self):
         base_retriever = self.vector_db.as_retriever(
@@ -163,7 +182,7 @@ class TextEmbedderDB:
 
         if self.use_reranker:
             compressor = FlashrankRerank(
-                client=Ranker(model_name="ms-marco-MiniLM-L-12-v2",
+                client=Ranker(model_name="ms-marco-MultiBERT-L-12",
                               log_level='WARNING'),
                 top_n=self.topk // 2)
             self.retriever = ContextualCompressionRetriever(
@@ -171,21 +190,25 @@ class TextEmbedderDB:
         else:
             self.retriever = base_retriever
 
-    def invoke(self, query: str) -> str:
-        retrieved_docs = self.retriever.invoke(query)
+    def invoke(self, query: str, **kwargs) -> str:
+        retrieved_docs = self.retriever.invoke(query, **kwargs)
 
         formatted_docs = []
         for i, doc in enumerate(retrieved_docs, 1):
             metadata = doc.metadata
-            file_name = metadata.get("file_name", "Unknown File")
-            file_index = metadata.get("file_name", "N/A")
+            title = metadata.get("title", "Unknown Title")
+            file_index = metadata.get("file_index", "N/A")
+            filename = metadata.get("filename", "Unknown filename")
             heading = metadata.get("heading", "Unknown Heading")
+            page_numbers = metadata.get('page_numbers', 'N/A')
 
             formatted_docs.append(
                 f"### Chunk ID {doc.id}\n"
-                f" **File index:** {file_index}\n"
-                f" **File path:** {file_name}\n"
+                f" **Document Title:** {title}\n"
+                f" **Document index:** {file_index}\n"
+                f" **Document filename:** {filename}\n"
                 f" **Heading:** {heading}\n"
+                f" **Page(s): {page_numbers}\n"
                 f"---\n{doc.page_content}\n"
             )
         return "\n\n".join(formatted_docs)
@@ -205,11 +228,6 @@ class TextEmbedderDB:
             embedding_function=self.model_embeddings,
             persist_directory=self.path_db,
         )
-
-        self.vector_db.add_documents(documents=self.documents, ids=self.ids)
-
-        del self.documents
-        del self.ids
 
 
 class TextExtractor:
