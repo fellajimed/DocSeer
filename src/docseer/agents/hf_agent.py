@@ -6,10 +6,10 @@ from faiss import IndexFlatIP, normalize_L2
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer
 
-from .base_agent import Agent
+from .base_agent import BaseAgent
 
 
-class HFDocAgent(Agent):
+class HFDocAgent(BaseAgent):
     sum_model = "Falconsai/text_summarization"
     enc_model = "sentence-transformers/all-MiniLM-L6-v2"
     qa_model = "distilbert/distilbert-base-cased-distilled-squad"

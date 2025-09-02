@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class Agent(ABC):
+class BaseAgent(ABC):
     @abstractmethod
     def retrieve(self):
         ...

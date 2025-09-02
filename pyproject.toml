@@ -1,6 +1,6 @@
 [project]
 name = "docseer"
-version = "0.2.5"
+version = "0.2.6"
 description = "DocSeer: Summarize and understand your documents at a glance."
 authors = [
     {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
@@ -20,6 +20,8 @@ dependencies = [
     "docling>=2.46.0",
     "flashrank>=0.2.10",
     "langchain-community>=0.3.27",
+    "pydantic-ai>=0.8.1",
+    "pydantic>=2.11.7",
 ]
 requires-python = ">=3.12"
 readme = "README.md"

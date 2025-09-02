@@ -1,12 +1,12 @@
 import contextlib
 from rich.console import Console
+from langchain_core.tools import tool
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.prompts import PromptTemplate
-from langchain_core.tools import tool
 from langchain.memory import ConversationBufferMemory
 from langchain.agents import AgentExecutor, create_react_agent
 
-from .base_agent import Agent
+from .base_agent import BaseAgent
 from .callback_handlers import RichCallbackHandler
 
 
@@ -28,7 +28,10 @@ Thought: I have enough information to answer the question.
 Final Answer: [your final answer here]
 ```
 
+If you are confident, generate the final answer without repeating tool use.
 When you do not need to use a tool, answer directly.
+Do not review the same document more than once.
+
 Begin!
 
 Chat History:
@@ -38,7 +41,7 @@ Question: {question}
 """
 
 
-class LocalDocReActAgent(Agent):
+class LocalDocReActAgent(BaseAgent):
     """
     An agentic RAG system for answering questions about research papers.
 
@@ -50,14 +53,45 @@ class LocalDocReActAgent(Agent):
         self.template = AGENT_TEMPLATE
 
         @tool
-        def retrieve_document_context(query: str) -> str:
+        def retrieve_document_context(query: str,
+                                      file_index: int | None = None) -> str:
             """
-            Searches and retrieves relevant document excerpts to answer user
+            Searches and retrieves relevant document to answer user
             questions about research papers.
             Use this tool to find factual information, definitions,
             or specific details.
+            If the user asks about a specific file, defined by its index
+            `file_index`, apply a filter to invoke.
+            If the information is to be retrieved from all the documents,
+            set `file_index` to None.
             """
-            return text_embedder.invoke(query)
+            kwargs = dict()
+            if file_index is not None:
+                kwargs['filter'] = {'file_index': file_index}
+            return text_embedder.invoke(query, **kwargs)
+
+        @tool
+        def number_of_unique_documents() -> int:
+            """
+            Count the number of unique documents provided by the user.
+            """
+            return len(text_embedder.source)
+
+        @tool
+        def list_documents_titles() -> str:
+            """
+            List the titles of all the documents provided by the user.
+            """
+            collection = text_embedder.vector_db._collection
+            metadatas = collection.get(include=["metadatas"])["metadatas"]
+
+            unique_titles = {meta["title"] for meta in metadatas
+                             if meta and "title" in meta}
+            response = "\n\n---\n\n".join(
+                f"{i+1}. {title}" for i, title in enumerate(unique_titles)
+            )
+
+            return response
 
         @tool
         def check_history_relevance(new_input: str) -> str:
@@ -82,7 +116,8 @@ class LocalDocReActAgent(Agent):
             ))
             return response.strip().lower()
 
-        self.tools = [retrieve_document_context, check_history_relevance]
+        self.tools = [retrieve_document_context, check_history_relevance,
+                      number_of_unique_documents, list_documents_titles]
 
         # Create the LangChain PromptTemplate and the LLM.
         self.prompt = PromptTemplate.from_template(self.template)

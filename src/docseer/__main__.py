@@ -8,7 +8,8 @@ from .formatter import TerminalIO
 from .processing import TextEmbedderDB
 
 
-def answer_one_query(agent: my_agents.Agent, console: TerminalIO) -> None:
+def answer_one_query(agent: my_agents.BaseAgent,
+                     console: TerminalIO) -> None:
     try:
         query = console.ask()
         if query == "clear":
@@ -66,7 +67,7 @@ def main() -> None:
         text_embedder = TextEmbedderDB(
             source=args.source, topk=args.top_k)
 
-        agent = my_agents.LocalDocReActAgent(text_embedder)
+        agent = my_agents.PydanticAIDocAgent(text_embedder)
 
         if args.interactive:
             while True:
@@ -78,6 +79,7 @@ def main() -> None:
         path_db = getattr(text_embedder, 'path_db', None)
         if path_db is not None:
             shutil.rmtree(path_db, ignore_errors=True)
+        ...
 
 
 if __name__ == "__main__":

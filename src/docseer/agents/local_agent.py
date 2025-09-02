@@ -3,7 +3,7 @@ from langchain_ollama.llms import OllamaLLM
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from .base_agent import Agent
+from .base_agent import BaseAgent
 
 AGENT_TEMPLATE = """\
 You are an exeprt in answering questions about reseach papers.
@@ -16,7 +16,7 @@ Make sure to cite the source documents if you can.
 """
 
 
-class LocalDocAgent(Agent):
+class LocalDocAgent(BaseAgent):
     def __init__(self, text_embedder):
         self.template = AGENT_TEMPLATE
 
