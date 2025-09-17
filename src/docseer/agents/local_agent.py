@@ -5,26 +5,32 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from .base_agent import BaseAgent
 
-AGENT_TEMPLATE = """\
+SYSTEM_TEMPLATE = """\
 You are an exeprt in answering questions about reseach papers.
-Use the following relevant context to answer the question.
 If you don't know the answer, just say that you don't know.
+"""
+
+HUMAN_TEMPLATE = """\
+Use the following relevant context to answer the question.
 Make sure to cite the source documents if you can.
 
 ----------------Context:
 {context}
+
+----------------Question:
+{question}
 """
 
 
 class LocalDocAgent(BaseAgent):
     def __init__(self, text_embedder):
-        self.template = AGENT_TEMPLATE
+        self.template = SYSTEM_TEMPLATE
 
         self.model = OllamaLLM(model="llama3.2")
         self.prompt = ChatPromptTemplate([
-            ("system", self.template),
+            ("system", SYSTEM_TEMPLATE),
             MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{question}"),
+            ("human", HUMAN_TEMPLATE),
         ])
         self.chain = self.prompt | self.model
 
