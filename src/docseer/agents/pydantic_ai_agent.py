@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 from dataclasses import dataclass
 from rich.console import Console
@@ -9,8 +10,7 @@ from langchain_core.vectorstores import VectorStoreRetriever
 
 from .base_agent import BaseAgent
 
-# DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/v1"
-DEFAULT_OLLAMA_URL = "http://localhost:11434/v1"
+DEFAULT_OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434/v1")
 
 AGENT_TEMPLATE = """\
 You are an exeprt in answering questions about reseach papers.

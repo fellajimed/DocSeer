@@ -67,7 +67,7 @@ def main() -> None:
         text_embedder = TextEmbedderDB(
             source=args.source, topk=args.top_k)
 
-        agent = my_agents.PydanticAIDocAgent(text_embedder)
+        agent = my_agents.LocalDocReActAgent(text_embedder)
 
         if args.interactive:
             while True:
