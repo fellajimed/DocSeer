@@ -2,10 +2,18 @@ import os
 import sys
 import shutil
 import argparse
+import logging
 
 from . import agents as my_agents
 from .formatter import TerminalIO
 from .processing import TextEmbedderDB
+
+# Set root logger
+logging.basicConfig(level=logging.WARNING)
+
+# Explicitly adjust other loggers
+for logger_name in logging.root.manager.loggerDict:
+    logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def answer_one_query(agent: my_agents.BaseAgent,
@@ -27,9 +35,10 @@ def answer_one_query(agent: my_agents.BaseAgent,
 
 def main() -> None:
     parser = argparse.ArgumentParser('DocSeer')
+    agents = set(my_agents.__all__)
+    agents.remove('BaseAgent')
     parser.add_argument(
-        '--agent', choices=set(my_agents.__all__),
-        default='LocalDocAgent',
+        '--agent', choices=agents, default='LocalDocAgent',
     )
     parser.add_argument(
         '-u', '--url', type=str, nargs='*', default=[],

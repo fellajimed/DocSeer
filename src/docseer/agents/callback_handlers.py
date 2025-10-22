@@ -4,7 +4,7 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.console import Console, Group
 from langchain_core.agents import AgentFinish
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks.base import BaseCallbackHandler
 
 
 class RichCallbackHandler(BaseCallbackHandler):

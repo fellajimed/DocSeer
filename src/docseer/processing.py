@@ -16,7 +16,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from flashrank import Ranker
 from langchain_community.document_compressors import FlashrankRerank
-from langchain.retrievers import ContextualCompressionRetriever
+from langchain_classic.retrievers import ContextualCompressionRetriever
 
 from .utils import get_sitemap_urls
 
