@@ -28,6 +28,10 @@ def answer_one_query(agent: my_agents.BaseAgent,
 def main() -> None:
     parser = argparse.ArgumentParser('DocSeer')
     parser.add_argument(
+        '--agent', choices=set(my_agents.__all__),
+        default='LocalDocAgent',
+    )
+    parser.add_argument(
         '-u', '--url', type=str, nargs='*', default=[],
     )
     parser.add_argument(
@@ -67,7 +71,7 @@ def main() -> None:
         text_embedder = TextEmbedderDB(
             source=args.source, topk=args.top_k)
 
-        agent = my_agents.LocalDocReActAgent(text_embedder)
+        agent = getattr(my_agents, args.agent)(text_embedder)
 
         if args.interactive:
             while True:
@@ -79,7 +83,6 @@ def main() -> None:
         path_db = getattr(text_embedder, 'path_db', None)
         if path_db is not None:
             shutil.rmtree(path_db, ignore_errors=True)
-        ...
 
 
 if __name__ == "__main__":

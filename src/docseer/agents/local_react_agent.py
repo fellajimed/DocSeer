@@ -3,7 +3,8 @@ from rich.console import Console
 from langchain_core.tools import tool
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.prompts import PromptTemplate
-from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain.agents import AgentExecutor, create_react_agent
 
 from .base_agent import BaseAgent
@@ -111,7 +112,7 @@ class LocalDocReActAgent(BaseAgent):
             )
             # We use the raw buffer string for a simple, quick check.
             response = relevance_llm.invoke(relevance_prompt.format(
-                history=self.memory.buffer,
+                history=self.chat_history.messages,
                 input=new_input
             ))
             return response.strip().lower()
@@ -138,7 +139,7 @@ class LocalDocReActAgent(BaseAgent):
             callbacks=[RichCallbackHandler()] if verbose else [],
         )
 
-        self.memory = ConversationBufferMemory(return_messages=True)
+        self.chat_history = ChatMessageHistory()
 
     def retrieve(self, query: str, verbose: bool = False) -> str:
         """
@@ -150,11 +151,11 @@ class LocalDocReActAgent(BaseAgent):
             try:
                 response = self.agent_executor.invoke({
                     "question": query,
-                    "chat_history": self.memory.buffer_as_messages,
+                    "chat_history": self.chat_history.messages,
                 })["output"]
 
-                self.memory.save_context(
-                    {"question": query}, {"output": response})
+                self.chat_history.add_message(HumanMessage(content=query))
+                self.chat_history.add_message(AIMessage(content=response))
 
                 return response
             except Exception as e:

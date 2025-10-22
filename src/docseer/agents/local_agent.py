@@ -1,7 +1,9 @@
 from rich.console import Console
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.callbacks.base import BaseCallbackHandler
 
 from .base_agent import BaseAgent
 
@@ -22,6 +24,11 @@ Make sure to cite the source documents if you can.
 """
 
 
+class StreamToStdoutHandler(BaseCallbackHandler):
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        print(token, end='', flush=True)
+
+
 class LocalDocAgent(BaseAgent):
     def __init__(self, text_embedder):
         self.template = SYSTEM_TEMPLATE
@@ -34,7 +41,7 @@ class LocalDocAgent(BaseAgent):
         ])
         self.chain = self.prompt | self.model
 
-        self.chat_history = []
+        self.chat_history = ChatMessageHistory()
 
         self.text_embedder = text_embedder
 
@@ -44,10 +51,10 @@ class LocalDocAgent(BaseAgent):
             response = self.chain.invoke({
                 "context": context,
                 "question": query,
-                "chat_history": self.chat_history,
+                "chat_history": self.chat_history.messages,
             })
-            self.chat_history.extend([
-                HumanMessage(content=query),
-                AIMessage(content=response),
-            ])
+
+            self.chat_history.add_message(HumanMessage(content=query))
+            self.chat_history.add_message(AIMessage(content=response))
+
             return response
