@@ -1,0 +1,32 @@
+services:
+  rag-chatbot:
+    build:
+      context: ./docker/chatbot
+    container_name: chatbot
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - ollama
+
+  ollama:
+    build:
+      context: ./docker/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+volumes:
+  ollama_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${HOME}/.ollama
+      o: bind

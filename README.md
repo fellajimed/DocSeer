@@ -121,6 +121,22 @@ For URLs and arXiv IDs, the PDF is downloaded to a temporary file, analyzed, and
 
 ---
 
+# 🐳 Running the Project with Docker
+
+Building and starting the services:
+```bash
+docker compose up --build
+```
+
+Running a one-time interactive command in a service container: 
+```bash
+docker compose run --rm -ti rag-chatbot -s https://arxiv.org/pdf/2407.12211 --top-k 5 -I
+```
+
+> NOTE: as for now, it uses models that are stored locally
+
+---
+
 ## 🧾 License
 
 MIT License
