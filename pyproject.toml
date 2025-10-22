@@ -1,6 +1,6 @@
 [project]
 name = "docseer"
-version = "0.2.7"
+version = "0.2.8"
 description = "DocSeer: Summarize and understand your documents at a glance."
 authors = [
     {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
