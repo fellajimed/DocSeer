@@ -9,11 +9,11 @@ from .formatter import TerminalIO
 from .processing import TextEmbedderDB
 
 # Set root logger
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.ERROR)
 
 # Explicitly adjust other loggers
 for logger_name in logging.root.manager.loggerDict:
-    logging.getLogger(logger_name).setLevel(logging.WARNING)
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
 def answer_one_query(agent: my_agents.BaseAgent,

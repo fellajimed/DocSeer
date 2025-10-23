@@ -20,12 +20,6 @@ from langchain_classic.retrievers import ContextualCompressionRetriever
 
 from .utils import get_sitemap_urls
 
-import warnings
-from transformers import logging
-
-logging.set_verbosity_error()
-warnings.filterwarnings("ignore")
-
 # default value for max_workers
 MAX_WORKERS = os.cpu_count() or 4
 
@@ -144,8 +138,6 @@ class TextEmbedderDB:
         return title, doc
 
     def process_documents(self) -> None:
-        self.ids = []
-        self.documents = []
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
