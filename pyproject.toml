@@ -22,6 +22,7 @@ dependencies = [
     "langchain-community>=0.3.27",
     "pydantic-ai>=0.8.1",
     "pydantic>=2.11.7",
+    "langchain-text-splitters>=1.0.0",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -36,7 +37,7 @@ test = "pytest tests"
 type-check = "mypy src"
 
 [project.scripts]
-docseer = "docseer.__main__:main"
+docseer = "docseer.__main__:run"
 
 
 [tool.pdm]

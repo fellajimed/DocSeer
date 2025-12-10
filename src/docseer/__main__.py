@@ -1,27 +1,38 @@
 import os
 import sys
-import shutil
+import asyncio
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from . import CACHE_FOLDER, MODEL_EMBEDDINGS, LLM_MODEL
+
+from .documents import Documents
+from .converters import DocConverter
+from .chunkers import ParentChildChunker
+from .databases import ChromaVectorDB, LocalFileStoreDB
+from .retrievers import Retriever, MultiStepsRetriever
+from .agents import BasicAgent
+from .ui import ConsoleUI
+
 import logging
 
-from . import agents as my_agents
-from .formatter import TerminalIO
-from .processing import TextEmbedderDB
 
-# Set root logger
-logging.basicConfig(level=logging.ERROR)
+def disable_logs():
+    # set root logger
+    logging.basicConfig(level=logging.ERROR)
 
-# Explicitly adjust other loggers
-for logger_name in logging.root.manager.loggerDict:
-    logging.getLogger(logger_name).setLevel(logging.ERROR)
+    # explicitly adjust other loggers
+    for logger_name in logging.root.manager.loggerDict:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
-def answer_one_query(agent: my_agents.BaseAgent,
-                     console: TerminalIO) -> None:
+def get_query_or_end(console) -> str | None:
     try:
         query = console.ask()
+        if not query:
+            return
         if query == "clear":
-            os.system('cls' if os.name == 'nt' else 'clear')
+            os.system("cls" if os.name == "nt" else "clear")
             return
     except (KeyboardInterrupt, EOFError):
         res = input("\nDo you really want to exit ([y]/n)? ").lower()
@@ -30,69 +41,187 @@ def answer_one_query(agent: my_agents.BaseAgent,
             sys.exit()
         else:
             return
-    console.answer(agent.retrieve(query))
+
+    return query
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser('DocSeer')
-    agents = set(my_agents.__all__)
-    agents.remove('BaseAgent')
-    parser.add_argument(
-        '--agent', choices=agents, default='LocalDocAgent',
-    )
-    parser.add_argument(
-        '-u', '--url', type=str, nargs='*', default=[],
-    )
-    parser.add_argument(
-        '-f', '--file-path', type=str, nargs='*', default=[],
-    )
-    parser.add_argument(
-        '-s', '--source', type=str, nargs='*', default=[],
-    )
-    parser.add_argument(
-        '-a', '--arxiv-id', type=str, nargs='*', default=None,
-    )
-    parser.add_argument(
-        '-k', '--top-k', type=int, default=10,
-    )
-    parser.add_argument(
-        '-Q', '--query', type=str, default=None,
-    )
-    parser.add_argument(
-        '-I', '--interactive', action='store_true',
-    )
-    args = parser.parse_args()
+def process_document(document, document_id, doc_converter, chunker, retriever):
+    data = doc_converter.convert(document)
+    content = data.pop("content", "")
 
-    if (args.query is None) and (not args.interactive):
+    chunks = chunker.chunk(content, document_id)
+
+    retriever.populate(**chunks, metadata=data)
+
+    return document
+
+
+def chabot(agent, retriever):
+    console = ConsoleUI(is_table=True)
+
+    while True:
+        query = get_query_or_end(console)
+        if query is None:
+            continue
+
+        with console.console.status("", spinner="dots"):
+            context = retriever.retrieve(query)
+
+        with console:
+            for chunk in agent.stream(query, context):
+                console.stream(chunk)
+
+
+def main(
+    documents,
+    doc_converter,
+    chunker,
+    retriever,
+    agent,
+    n_workers: int | None = None,
+    index: bool = False,
+):
+    max_workers = n_workers or os.cpu_count() or 4
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                process_document,
+                doc,
+                doc_id,
+                doc_converter,
+                chunker,
+                retriever,
+            )
+            for doc, doc_id in documents.docs_to_process
+        ]
+
+        for future in as_completed(futures):
+            documents.cache_source(future.result())
+
+    if not index:
+        # disable logs for a clean UI
+        disable_logs()
+        chabot(agent, retriever)
+
+
+async def aprocess_document(
+    document, document_id, doc_converter, chunker, retriever
+):
+    data = await doc_converter.aconvert(document)
+    content = data.pop("content", "")
+
+    chunks = chunker.chunk(content, document_id)
+
+    await retriever.apopulate(**chunks, metadata=data)
+
+    return document
+
+
+async def achabot(agent, retriever):
+    console = ConsoleUI(is_table=True)
+
+    while True:
+        query = get_query_or_end(console)
+        if query is None:
+            continue
+
+        with console.console.status("", spinner="dots"):
+            context = await retriever.aretrieve(query)
+
+        with console:
+            async for chunk in agent.astream(query, context):
+                console.stream(chunk)
+
+
+async def amain(
+    documents,
+    doc_converter,
+    chunker,
+    retriever,
+    agent,
+    index: bool = False,
+):
+    tasks = [
+        asyncio.create_task(
+            aprocess_document(doc, doc_id, doc_converter, chunker, retriever)
+        )
+        for doc, doc_id in documents.docs_to_process
+    ]
+    results = await asyncio.gather(*tasks)
+
+    for doc in results:
+        documents.cache_source(doc)
+
+    if not index:
+        # disable logs for a clean UI
+        disable_logs()
+        await achabot(agent, retriever)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser("DocSeer")
+
+    parser.add_argument("-s", "--source", type=str, nargs="*", default=[])
+    parser.add_argument("--n-workers", type=int, default=None)
+    parser.add_argument("--keep-db", action="store_true")
+    parser.add_argument("--sync", action="store_true")
+    parser.add_argument("--index", action="store_true")
+    parser.add_argument("--show-logs", action="store_true")
+    parser.add_argument("--version", action="store_true")
+
+    return parser.parse_args()
+
+
+def run():
+    args = parse_args()
+
+    if args.version:
+        from . import __version__ as v
+
+        print(f"DocSeer version: {v}")
         return
 
-    # TODO: remove this line!
-    args.source += args.file_path + args.url
+    if not args.show_logs:
+        disable_logs()
 
-    if args.arxiv_id is not None:
-        args.source += [f"https://arxiv.org/pdf/{arxiv_id}"
-                        for arxiv_id in args.arxiv_id]
+    documents = Documents(args.source)
+    doc_converter = DocConverter()
+    chunker = ParentChildChunker()
 
-    text_embedder = None
-    try:
-        console = TerminalIO(is_table=True)
+    vector_db = ChromaVectorDB(
+        MODEL_EMBEDDINGS, 32, CACHE_FOLDER / "embeds_db"
+    )
+    docstore = LocalFileStoreDB(CACHE_FOLDER / "docstore_db")
 
-        text_embedder = TextEmbedderDB(
-            source=args.source, topk=args.top_k)
+    base_retriever = Retriever(vector_db=vector_db, docstore=docstore, topk=10)
+    retriever = MultiStepsRetriever.init(
+        base_retriever=base_retriever,  # llm=LLM_MODEL
+    )
+    agent = BasicAgent(LLM_MODEL)
 
-        agent = getattr(my_agents, args.agent)(text_embedder)
-
-        if args.interactive:
-            while True:
-                answer_one_query(agent, console)
-        elif args.query is not None:
-            console.answer(agent.retrieve(args.query))
-    finally:
-        # clean-ups: database
-        path_db = getattr(text_embedder, 'path_db', None)
-        if path_db is not None:
-            shutil.rmtree(path_db, ignore_errors=True)
+    if args.sync:
+        main(
+            documents,
+            doc_converter,
+            chunker,
+            retriever,
+            agent,
+            args.n_workers,
+            args.index,
+        )
+    else:
+        asyncio.run(
+            amain(
+                documents,
+                doc_converter,
+                chunker,
+                retriever,
+                agent,
+                args.index,
+            )
+        )
 
 
 if __name__ == "__main__":
-    main()
+    run()

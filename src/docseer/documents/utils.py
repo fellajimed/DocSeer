@@ -7,11 +7,11 @@ def get_device(device: str | None = None) -> torch.device:
     if device is not None:
         return torch.device(device)
     elif torch.backends.mps.is_available():
-        return torch.device('mps')
+        return torch.device("mps")
     elif torch.cuda.is_available():
-        return torch.device('cuda')
+        return torch.device("cuda")
     else:
-        return torch.device('cpu')
+        return torch.device("cpu")
 
 
 def get_sitemap_urls(sitemap_url: str) -> list[str]:
@@ -28,7 +28,7 @@ def get_sitemap_urls(sitemap_url: str) -> list[str]:
         ValueError: If there's an error fetching or parsing the sitemap
     """
     try:
-        assert sitemap_url.endswith('sitemap.xml')
+        assert sitemap_url.endswith("sitemap.xml")
 
         # Fetch sitemap URL
         response = requests.get(sitemap_url, timeout=10)
@@ -40,12 +40,16 @@ def get_sitemap_urls(sitemap_url: str) -> list[str]:
         # Handle different XML namespaces that sitemaps might use
         namespaces = (
             {"ns": root.tag.split("}")[0].strip("{")}
-            if "}" in root.tag else ""
+            if "}" in root.tag
+            else ""
         )
 
         # Extract URLs using namespace if present
-        it = (root.findall(".//ns:loc", namespaces)
-              if namespaces else root.findall(".//loc"))
+        it = (
+            root.findall(".//ns:loc", namespaces)
+            if namespaces
+            else root.findall(".//loc")
+        )
 
         return [elem.text for elem in it]
 
