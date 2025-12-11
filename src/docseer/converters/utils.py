@@ -8,7 +8,7 @@ def get_file_bytes(path_or_url: str) -> bytes:
         with open(path_or_url, "rb") as f:
             data = f.read()
     else:
-        response = requests.get(path_or_url)
+        response = requests.get(path_or_url, timeout=20)
         response.raise_for_status()
         data = response.content
     return data
