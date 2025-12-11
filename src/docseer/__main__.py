@@ -57,14 +57,14 @@ def process_document(document, document_id, doc_converter, chunker, retriever):
 
 
 def chabot(agent, retriever):
-    console = ConsoleUI(is_table=True)
+    console = ConsoleUI(is_table=True, status_desc="")
 
     while True:
         query = get_query_or_end(console)
         if query is None:
             continue
 
-        with console.console.status("", spinner="dots"):
+        with console.console.status("Retrieving ...", spinner="dots"):
             context = retriever.retrieve(query)
 
         with console:
@@ -119,14 +119,14 @@ async def aprocess_document(
 
 
 async def achabot(agent, retriever):
-    console = ConsoleUI(is_table=True)
+    console = ConsoleUI(is_table=True, status_desc="")
 
     while True:
         query = get_query_or_end(console)
         if query is None:
             continue
 
-        with console.console.status("", spinner="dots"):
+        with console.console.status("Retrieving ...", spinner="dots"):
             context = await retriever.aretrieve(query)
 
         with console:
