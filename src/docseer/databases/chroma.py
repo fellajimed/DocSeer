@@ -71,7 +71,9 @@ class ChromaVectorDB:
         embeds = await self.model_embeddings.aembed_documents(
             d_batch["documents"]
         )
-        self.collection.add(embeddings=embeds, **d_batch)
+        await asyncio.to_thread(
+            self.collection.add, embeddings=embeds, **d_batch
+        )
 
     def query(self, text: str, n_results: int = 5) -> list[Document]:
         embeds = self.model_embeddings.embed_documents(text)
@@ -82,7 +84,7 @@ class ChromaVectorDB:
 
     async def aquery(self, text: str, n_results: int = 5):
         embeds = await self.model_embeddings.aembed_documents(text)
-        results = self.collection.query(
-            query_embeddings=embeds, n_results=n_results
+        results = await asyncio.to_thread(
+            self.collection.query, query_embeddings=embeds, n_results=n_results
         )
         return chroma_results_to_documents(results)

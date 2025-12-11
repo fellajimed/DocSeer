@@ -1,3 +1,4 @@
+import asyncio
 from langchain_core.documents import Document
 from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
@@ -58,4 +59,11 @@ class ParentChildChunker:
             parent_ids=parent_ids,
             parent_chunks=parent_chunks,
             chunks=child_chunks,
+        )
+
+    async def achunk(
+        self, document_content: str, document_id: str
+    ) -> dict[str, list[Document]]:
+        return await asyncio.to_thread(
+            self.chunk, document_content, document_id
         )

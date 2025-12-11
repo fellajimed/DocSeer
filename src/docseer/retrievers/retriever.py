@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Optional
 from pydantic import Field
 from langchain_core.documents import Document
@@ -42,7 +43,9 @@ class Retriever(BaseRetriever):
             or parent_ids is None
             or parent_chunks is None
         ):
-            self.docstore.add(parent_ids, parent_chunks)
+            await asyncio.to_thread(
+                self.docstore.add, parent_ids, parent_chunks
+            )
 
     def retrieve(self, text: str) -> list[Document]:
         return self._get_relevant_documents(text)
@@ -67,7 +70,7 @@ class Retriever(BaseRetriever):
         chunks: list[Document] = await self.vector_db.aquery(text, self.topk)
         if self.docstore is not None:
             parent_ids = [doc.metadata["parent_id"] for doc in chunks]
-            context = self.docstore.get(parent_ids)
+            context = await asyncio.to_thread(self.docstore.get, parent_ids)
             chunks = [
                 Document(page_content=c, metadata=doc.metadata)
                 for (c, doc) in zip(context, chunks)

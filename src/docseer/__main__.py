@@ -111,7 +111,7 @@ async def aprocess_document(
     data = await doc_converter.aconvert(document)
     content = data.pop("content", "")
 
-    chunks = chunker.chunk(content, document_id)
+    chunks = await chunker.achunk(content, document_id)
 
     await retriever.apopulate(**chunks, metadata=data)
 
@@ -143,9 +143,7 @@ async def amain(
     index: bool = False,
 ):
     tasks = [
-        asyncio.create_task(
-            aprocess_document(doc, doc_id, doc_converter, chunker, retriever)
-        )
+        aprocess_document(doc, doc_id, doc_converter, chunker, retriever)
         for doc, doc_id in documents.docs_to_process
     ]
     results = await asyncio.gather(*tasks)
