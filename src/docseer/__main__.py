@@ -180,7 +180,7 @@ def run():
         print(f"DocSeer version: {v}")
         return
 
-    if not args.show_logs:
+    if not (args.show_logs or args.index):
         disable_logs()
 
     documents = Documents(args.source)
