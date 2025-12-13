@@ -4,7 +4,7 @@ import asyncio
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from . import CACHE_FOLDER, MODEL_EMBEDDINGS, LLM_MODEL
+from . import CACHE_FOLDER, MODEL_EMBEDDINGS, LLM_MODEL, SMALL_LLM_MODEL
 
 from .documents import Documents
 from .converters import DocConverter
@@ -192,9 +192,9 @@ def run():
     )
     docstore = LocalFileStoreDB(CACHE_FOLDER / "docstore_db")
 
-    base_retriever = Retriever(vector_db=vector_db, docstore=docstore, topk=10)
+    base_retriever = Retriever(vector_db=vector_db, docstore=docstore, topk=5)
     retriever = MultiStepsRetriever.init(
-        base_retriever=base_retriever,  # llm=LLM_MODEL
+        base_retriever=base_retriever, llm=SMALL_LLM_MODEL
     )
     agent = BasicAgent(LLM_MODEL)
 
