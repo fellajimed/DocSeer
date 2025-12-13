@@ -8,7 +8,7 @@ from . import CACHE_FOLDER, MODEL_EMBEDDINGS, LLM_MODEL, SMALL_LLM_MODEL
 
 from .documents import Documents
 from .converters import DocConverter
-from .chunkers import ParentChildChunker
+from .chunkers import DoclingChunker, ParentChildChunker
 from .databases import ChromaVectorDB, LocalFileStoreDB
 from .retrievers import Retriever, MultiStepsRetriever
 from .agents import BasicAgent
@@ -185,14 +185,19 @@ def run():
 
     documents = Documents(args.source)
     doc_converter = DocConverter()
-    chunker = ParentChildChunker()
+    # chunker = ParentChildChunker()
+    chunker = DoclingChunker(chunking_strat="hierarchical")
 
     vector_db = ChromaVectorDB(
         MODEL_EMBEDDINGS, 32, CACHE_FOLDER / "embeds_db"
     )
-    docstore = LocalFileStoreDB(CACHE_FOLDER / "docstore_db")
+    docstore = (
+        LocalFileStoreDB(CACHE_FOLDER / "docstore_db")
+        if isinstance(chunker, ParentChildChunker)
+        else None
+    )
 
-    base_retriever = Retriever(vector_db=vector_db, docstore=docstore, topk=5)
+    base_retriever = Retriever(vector_db=vector_db, docstore=docstore, topk=2)
     retriever = MultiStepsRetriever.init(
         base_retriever=base_retriever, llm=SMALL_LLM_MODEL
     )
