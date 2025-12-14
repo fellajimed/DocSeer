@@ -2,11 +2,13 @@ from textwrap import dedent
 from langchain_core.documents import Document
 
 
-def docs_to_md(docs: list[Document]) -> str:
+def docs_to_md(docs: list[str | Document]) -> str:
     return "\n----------\n".join(map(doc_to_md, docs))
 
 
-def doc_to_md(doc: Document) -> str:
+def doc_to_md(doc: str | Document) -> str:
+    if isinstance(doc, str):
+        return doc
     return dedent(f"""
         * Title: {doc.metadata.get("title", "Not provided")}
         * Authors: {doc.metadata.get("author", "Not provided")}

@@ -18,6 +18,10 @@ class LocalFileStoreDB:
 
         self.path_db = path_db if path_db.exists() else default_path
 
+    @property
+    def is_empty(self):
+        return (not self.path_db.exists()) or (not any(self.path_db.iterdir()))
+
     def add(self, ids: list[str], chunks: list[Document]):
         assert len(ids) == len(chunks)
         self.docstore.mset(

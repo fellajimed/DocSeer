@@ -52,9 +52,17 @@ class Retriever(BaseRetriever):
 
     def _get_relevant_documents(self, text: str):
         chunks: list[Document] = self.vector_db.query(text, self.topk)
-        if self.docstore is not None:
+        if self.docstore is not None and not self.docstore.is_empty:
             # get unique parent_id
-            parent_ids = list({doc.metadata["parent_id"] for doc in chunks})
+            parent_ids = [
+                p_id
+                for p_id in {
+                    doc.metadata.get("parent_id", None) for doc in chunks
+                }
+                if p_id is not None
+            ]
+            if not parent_ids:
+                return chunks
             context = self.docstore.get(parent_ids)
             chunks = [
                 Document(page_content=c, metadata=doc.metadata)
@@ -68,8 +76,16 @@ class Retriever(BaseRetriever):
 
     async def _aget_relevant_documents(self, text: str):
         chunks: list[Document] = await self.vector_db.aquery(text, self.topk)
-        if self.docstore is not None:
-            parent_ids = [doc.metadata["parent_id"] for doc in chunks]
+        if self.docstore is not None and not self.docstore.is_empty:
+            parent_ids = [
+                p_id
+                for p_id in {
+                    doc.metadata.get("parent_id", None) for doc in chunks
+                }
+                if p_id is not None
+            ]
+            if not parent_ids:
+                return chunks
             context = await asyncio.to_thread(self.docstore.get, parent_ids)
             chunks = [
                 Document(page_content=c, metadata=doc.metadata)

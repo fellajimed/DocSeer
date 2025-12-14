@@ -53,7 +53,7 @@ class BasicAgent:
 
         self.chat_history = ChatMessageHistory()
 
-    def stream(self, query: str, context: list[Document]):
+    def stream(self, query: str, context: list[str | Document]):
         context_md = docs_to_md(context)
         it = self.chain.stream(
             {
@@ -71,7 +71,7 @@ class BasicAgent:
         self.chat_history.add_message(HumanMessage(content=query))
         self.chat_history.add_message(AIMessage(content=response))
 
-    async def astream(self, query: str, context: list[Document]):
+    async def astream(self, query: str, context: list[str | Document]):
         context_md = docs_to_md(context)
         ait = self.chain.astream(
             {
@@ -89,7 +89,7 @@ class BasicAgent:
         self.chat_history.add_message(HumanMessage(content=query))
         self.chat_history.add_message(AIMessage(content=response))
 
-    def invoke(self, query: str, context: list[Document]) -> str:
+    def invoke(self, query: str, context: list[str | Document]) -> str:
         context_md = docs_to_md(context)
         with Console().status("", spinner="dots"):
             response = self.chain.invoke(
@@ -105,7 +105,7 @@ class BasicAgent:
 
             return response
 
-    async def ainvoke(self, query: str, context: list[Document]) -> str:
+    async def ainvoke(self, query: str, context: list[str | Document]) -> str:
         context_md = docs_to_md(context)
         with Console().status("", spinner="dots"):
             response = await self.chain.ainvoke(
