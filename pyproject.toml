@@ -32,20 +32,15 @@ license = {text = "MIT"}
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
-[tool.pdm.scripts]
-test = "pytest tests"
-type-check = "mypy src"
-
 [project.scripts]
 docseer = "docseer.__main__:run"
 
 
-[tool.pdm]
-distribution = true
-
 [dependency-groups]
 dev = [
     "mypy>=1.15.0",
+    "fastapi>=0.124.2",
+    "honcho>=2.0.0",
 ]
 
 [tool.mypy]
@@ -56,3 +51,11 @@ disallow_incomplete_defs = true
 follow_untyped_imports = true
 show_error_codes = true
 warn_unused_ignores = true
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.scripts]
+test = "pytest tests"
+type-check = "mypy src"
+

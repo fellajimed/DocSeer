@@ -1,0 +1,4 @@
+pdf2md:   uvicorn pdf2md.main:app --port 8001 --reload
+chunking: uvicorn chunking.main:app --port 8002 --reload
+retriever: uvicorn retriever.main:app --port 8003 --reload
+chatbot:  uvicorn chatbot.main:app --port 8000 --reload
