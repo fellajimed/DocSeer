@@ -32,7 +32,7 @@ class ParentChildChunker:
 
     def chunk(
         self, document_content: str, document_id: str
-    ) -> dict[str, list[Document]]:
+    ) -> dict[str, list[str | Document] | None]:
         parent_chunks = self.parent_splitter.split_text(document_content)
         parent_ids = []
         child_chunks = []
@@ -66,7 +66,7 @@ class ParentChildChunker:
 
     async def achunk(
         self, document_content: str, document_id: str
-    ) -> dict[str, list[Document]]:
+    ) -> dict[str, list[str | Document] | None]:
         return await asyncio.to_thread(
             self.chunk, document_content, document_id
         )

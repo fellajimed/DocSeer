@@ -17,7 +17,7 @@ class DoclingChunker:
 
     def chunk(
         self, document_content: str, document_id: str
-    ) -> dict[str, list[Document]]:
+    ) -> dict[str, list[str | Document] | None]:
         dl_doc = self._convert_str_to_docling_doc(document_content)
 
         chunks = []
@@ -45,7 +45,7 @@ class DoclingChunker:
 
     async def achunk(
         self, document_content: str, document_id: str
-    ) -> dict[str, list[Document]]:
+    ) -> dict[str, list[str | Document] | None]:
         return await asyncio.to_thread(
             self.chunk, document_content, document_id
         )
