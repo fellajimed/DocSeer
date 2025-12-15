@@ -55,6 +55,15 @@ async def populate_db(req: RetrieverRequest):
     }
 
 
+@app.post("/delete_document")
+def delete_document(req: RetrieverResponse):
+    retriever.delete_document(document_id=req.document_id)
+    return {
+        "document": req.document,
+        "document_id": req.document_id,
+    }
+
+
 @app.post("/retrieve")
 async def retrieve(query: str) -> str:
     context = await retriever.aretrieve(query)

@@ -18,9 +18,9 @@ class DocResponse(BaseModel):
     metadata: dict
 
 
-@app.post("/chunk", response_model=DocResponse)
-async def chunk_document(req: DocRequest):
-    result = await doc_converter.aconvert(req.doc_path)
+@app.post("/read_document", response_model=DocResponse)
+async def read_document(req: DocRequest):
+    result = await doc_converter.aconvert(req.document)
     content = result.pop("content", "")
     return {
         "document": req.document,
