@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from langchain_core.documents import Document
 from docseer.chunkers import ParentChildChunker
 
 app = FastAPI()
@@ -18,8 +19,8 @@ class ChunkResponse(BaseModel):
     document_id: str
     metadata: dict
     parent_ids: list[str] | None
-    parent_chunks: list[str] | None
-    chunks: list[str]
+    parent_chunks: list[Document] | None
+    chunks: list[Document]
 
 
 @app.post("/chunk", response_model=ChunkResponse)

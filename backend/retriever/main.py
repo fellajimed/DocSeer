@@ -7,6 +7,7 @@
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+from langchain_core.documents import Document
 from docseer import retrievers
 from docseer import MODEL_EMBEDDINGS, CACHE_FOLDER, SMALL_LLM_MODEL
 from docseer.databases import ChromaVectorDB, LocalFileStoreDB
@@ -20,8 +21,8 @@ class RetrieverRequest(BaseModel):
     document_id: str
     metadata: dict
     parent_ids: list[str] | None
-    parent_chunks: list[str] | None
-    chunks: list[str]
+    parent_chunks: list[Document] | None
+    chunks: list[Document]
 
 
 class RetrieverResponse(BaseModel):

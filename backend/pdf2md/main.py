@@ -7,7 +7,8 @@ doc_converter = DocConverter()
 
 
 class DocRequest(BaseModel):
-    doc_path: str
+    document: str
+    document_id: str
 
 
 class DocResponse(BaseModel):
