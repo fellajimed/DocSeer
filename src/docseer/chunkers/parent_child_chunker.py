@@ -41,7 +41,10 @@ class ParentChildChunker:
             parent_id = f"{document_id}-{i}"
             parent_doc.id = parent_id
             parent_ids.append(parent_id)
-            parent_metadata = parent_doc.metadata | {"parent_id": parent_id}
+            parent_metadata = parent_doc.metadata | {
+                "parent_id": parent_id,
+                "document_id": document_id,
+            }
 
             small_chunks = self.child_splitter.split_text(
                 parent_doc.page_content

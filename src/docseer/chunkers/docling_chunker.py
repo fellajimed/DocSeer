@@ -33,7 +33,7 @@ class DoclingChunker:
                 Document(
                     page_content=chunk_text,
                     id=f"{document_id}-{i}",
-                    metadata={"Header": header},
+                    metadata={"Header": header, "document_id": document_id},
                 )
             )
 
