@@ -121,6 +121,17 @@ For URLs and arXiv IDs, the PDF is downloaded to a temporary file, analyzed, and
 
 ---
 
+## Run the application as a backend
+
+
+All the services are in the `Procfile` file.
+
+```bash
+honcho start
+```
+
+---
+
 # 🐳 Running the Project with Docker
 
 Building and starting the services:
