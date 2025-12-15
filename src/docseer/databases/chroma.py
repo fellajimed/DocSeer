@@ -47,6 +47,7 @@ class ChromaVectorDB:
 
         path_db = path_db or default_path
         path_db = Path(path_db).resolve().absolute()
+        path_db.mkdir(parents=True, exist_ok=True)
 
         self.path_db = path_db if path_db.exists() else default_path
         # shutil.rmtree(self.path_db, ignore_errors=True)
@@ -74,6 +75,9 @@ class ChromaVectorDB:
         await asyncio.to_thread(
             self.collection.add, embeddings=embeds, **d_batch
         )
+
+    def delete(self, document_id: str):
+        self.collection.delete(where={"document_id": document_id})
 
     def query(self, text: str, n_results: int = 5) -> list[Document]:
         embeds = self.model_embeddings.embed_documents(text)

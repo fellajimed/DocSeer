@@ -17,6 +17,7 @@ class LocalFileStoreDB:
         path_db = Path(path_db).resolve().absolute()
 
         self.path_db = path_db if path_db.exists() else default_path
+        self.path_db.mkdir(parents=True, exist_ok=True)
 
     @property
     def is_empty(self):
@@ -27,6 +28,9 @@ class LocalFileStoreDB:
         self.docstore.mset(
             list(zip(ids, (c.page_content.encode("utf-8") for c in chunks)))
         )
+
+    def delete(self, document_id: str):
+        self.docstore.mdelete(list(self.docstore.yield_keys(document_id)))
 
     # TODO: maybe rename this method
     def get(self, ids: list[str]) -> list[str]:

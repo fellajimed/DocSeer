@@ -47,6 +47,11 @@ class Retriever(BaseRetriever):
                 self.docstore.add, parent_ids, parent_chunks
             )
 
+    def delete_document(self, document_id: str):
+        self.vector_db.delete(document_id)
+        if self.docstore is not None and not self.docstore.is_empty:
+            self.docstore.delete(document_id)
+
     def retrieve(self, text: str) -> list[Document]:
         return self._get_relevant_documents(text)
 

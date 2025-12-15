@@ -68,6 +68,9 @@ class MultiStepsRetriever(BaseRetriever):
             chunks, metadata, parent_ids, parent_chunks
         )
 
+    def delete_document(self, document_id: str):
+        self.base_retriever.delete_document(document_id)
+
     def retrieve(self, text: str) -> list[Document]:
         return self._get_relevant_documents(text)
 
