@@ -128,4 +128,5 @@ async def invoke(req: QueryRequest):
             raise HTTPException(status_code=400)
         except httpx.RequestError:
             raise HTTPException(status_code=503)
-    return await agent.ainvoke(req.query, context)
+    response = await agent.ainvoke(req.query, context)
+    return {"response": response}
