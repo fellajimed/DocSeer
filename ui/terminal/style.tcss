@@ -1,0 +1,54 @@
+#body {
+    layout: horizontal;
+    height: 1fr;
+}
+
+Screen {
+    background: $surface;
+}
+
+#chat-log {
+    height: 1fr;
+    padding: 2;
+    scrollbar-gutter: stable;
+    scrollbar-size-vertical: 1;
+}
+
+#sidebar {
+    width: 25;
+    background: $surface;
+    color: $text;
+    padding: 1;
+    display: none;
+}
+
+.sidebar-title {
+    text-style: bold;
+    margin-bottom: 1;
+    color: $accent;
+}
+
+.menu-item {
+    padding: 0 1;
+    margin-bottom: 1;
+    background: $boost;
+}
+
+ChatMessage {
+    width: 100%;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#input {
+    dock: bottom;
+    height: auto;
+    margin: 0 1 0 0;
+    padding: 0 1;
+}
+
+Footer {
+    background: $surface;
+    color: $text;
+    padding: 0 4 0 0;
+}

@@ -41,6 +41,7 @@ dev = [
     "mypy>=1.15.0",
     "fastapi>=0.124.2",
     "honcho>=2.0.0",
+    "textual>=6.10.0",
 ]
 
 [tool.mypy]
