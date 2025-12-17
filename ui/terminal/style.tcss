@@ -1,6 +1,7 @@
 #body {
     layout: horizontal;
     height: 1fr;
+    background: transparent;
 }
 
 Screen {
@@ -51,4 +52,23 @@ Footer {
     background: $surface;
     color: $text;
     padding: 0 4 0 0;
+}
+
+
+
+ChatMessage LoadingIndicator {
+    align-horizontal: left;
+
+    width: 8 !important;
+    height: 1 !important;
+
+    content-align: left middle;
+
+    background: transparent;
+    margin-left: 1;
+    dock: left;
+}
+
+ChatMessage LoadingIndicator > .loading-indicator--dot {
+    align-horizontal: left;
 }

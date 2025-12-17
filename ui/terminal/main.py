@@ -108,6 +108,10 @@ class ChatApp(App):
         self.run_worker(self.stream_agent(user_text))
 
     async def invoke_agent(self, prompt: str) -> None:
+        bot_bubble = ChatMessage(content="", is_user=False)
+        bot_bubble.loading = True
+        await self.chat_log.mount(bot_bubble)
+
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(60.0)
@@ -117,19 +121,17 @@ class ChatApp(App):
                 )
                 response_text = response.json()["response"]
 
-            bot_bubble = ChatMessage(response_text, is_user=False)
-
-            await self.chat_log.mount(bot_bubble)
+            bot_bubble.loading = False
+            bot_bubble.content += response_text
             bot_bubble.scroll_visible()
 
         except Exception as e:
-            error_bubble = ChatMessage(
-                f"Error: {str(e)}", is_user=False, classes="bot-msg"
-            )
-            await self.chat_log.mount(error_bubble)
+            bot_bubble.content = f"Error: {str(e)}"
+            bot_bubble.loading = False
 
     async def stream_agent(self, prompt: str) -> None:
         bot_bubble = ChatMessage(content="", is_user=False)
+        bot_bubble.loading = True
         await self.chat_log.mount(bot_bubble)
 
         try:
@@ -142,10 +144,13 @@ class ChatApp(App):
                     json={"query": prompt},
                 ) as response:
                     async for chunk in response.aiter_text():
+                        if bot_bubble.loading:
+                            bot_bubble.loading = False
                         bot_bubble.content += chunk
                         bot_bubble.scroll_visible()
         except Exception as e:
             bot_bubble.content = f"Error: {str(e)}"
+            bot_bubble.loading = False
 
 
 if __name__ == "__main__":
