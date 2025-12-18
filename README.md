@@ -27,14 +27,15 @@ Make sure **Ollama** is installed and any required models are available locally 
 DocSeer uses the following models via Ollama:
 
 - [`mxbai-embed-large`](https://ollama.com/library/mxbai-embed-large) — for high-quality embedding and semantic search  
-- [`llama3.2`](https://ollama.com/library/llama3.2) — for natural language understanding and generation (QA & summarization)
+- [`gemma3:4b`](https://ollama.com/library/gemma3:4b) — for natural language understanding and generation (QA & summarization)
 
 To get started, run:
 
 ```bash
 ollama pull mxbai-embed-large
-ollama pull llama3.2
+ollama pull gemma3:4b
 ```
+> NB: These models can be modifed in `src/docseer/__init__.py`
 
 ---
 
