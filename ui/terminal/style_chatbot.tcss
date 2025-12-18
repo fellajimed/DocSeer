@@ -30,7 +30,8 @@ ChatbotWidget ChatMessage {
 
 ChatbotWidget SubmitTextArea {
     dock: bottom;
-    height: 3;
+    height: auto;
+    max-height: 60%;
     width: 100%;
     margin: 0;
     padding: 0 1;
