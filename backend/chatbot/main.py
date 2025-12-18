@@ -77,7 +77,11 @@ async def process_document(req: DocRequest):
             response.raise_for_status()
             # update document
             documents.cache_source(req.doc_path)
-            return {"status": "success", "detail": "document processed!"}
+            return {
+                "status": "success",
+                "detail": "document processed!",
+                **payload,
+            }
         except httpx.HTTPStatusError:
             raise HTTPException(status_code=400)
         except httpx.RequestError:
