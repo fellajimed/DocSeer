@@ -53,6 +53,9 @@ class BasicAgent:
 
         self.chat_history = ChatMessageHistory()
 
+    def clean_chat_history(self):
+        self.chat_history = ChatMessageHistory()
+
     def stream(self, query: str, context: list[str | Document]):
         context_md = docs_to_md(context)
         it = self.chain.stream(
