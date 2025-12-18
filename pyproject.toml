@@ -16,7 +16,6 @@ dependencies = [
     "sentence-transformers>=4.1.0",
     "faiss-cpu>=1.11.0",
     "hf-xet>=1.1.2",
-    "pdm-plugin-torch>=23.4.0",
     "docling>=2.46.0",
     "flashrank>=0.2.10",
     "langchain-community>=0.3.27",
@@ -52,11 +51,3 @@ disallow_incomplete_defs = true
 follow_untyped_imports = true
 show_error_codes = true
 warn_unused_ignores = true
-
-[tool.pdm]
-distribution = true
-
-[tool.pdm.scripts]
-test = "pytest tests"
-type-check = "mypy src"
-

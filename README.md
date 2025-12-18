@@ -35,6 +35,7 @@ To get started, run:
 ollama pull mxbai-embed-large
 ollama pull gemma3:4b
 ```
+
 > NB: These models can be modifed in `src/docseer/__init__.py`
 
 ---
@@ -64,26 +65,20 @@ To install `docseer` locally for development:
    cd docseer
    ```
 
-2. Install dependencies using [PDM](https://pdm-project.org/en/latest/):
+2. Install dependencies using [uv](https://docs.astral.sh/uv/):
 
    ```bash
-   pdm install
-   ```
-
-3. Activate the virtual environment:
-
-   ```bash
-   eval "$(pdm venv activate)"
+   uv sync
    ```
 
 This method is ideal for contributing to the project or running `docseer` from source.
 
 ---
 
-> 💡 **Note:** Make sure you have [PDM](https://pdm-project.org/en/latest/#installation) installed. You can install it with:
+> 💡 **Note:** Make sure you have [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. You can install it with:
 >
 > ```bash
-> pip install pdm
+> pip install uv
 > ```
 ---
 
@@ -94,25 +89,24 @@ docseer --help
 ```
 
 ```
+usage: DocSeer [-h] [-s [SOURCE ...]] [--n-workers N_WORKERS] [--keep-db] [--sync] [--index] [--show-logs] [--version]
+
 options:
   -h, --help            show this help message and exit
-  -u [URL ...], --url [URL ...]
-  -f [FILE_PATH ...], --file-path [FILE_PATH ...]
   -s [SOURCE ...], --source [SOURCE ...]
-  -a [ARXIV_ID ...], --arxiv-id [ARXIV_ID ...]
-  -k TOP_K, --top-k TOP_K
-  -Q QUERY, --query QUERY
-  -I, --interactive
+  --n-workers N_WORKERS
+  --keep-db
+  --sync
+  --index
+  --show-logs
+  --versio
 ```
 
 ### 📥 Supported Input Formats
-DocSeer accepts any of the following:
+DocSeer accepts any of the following in the `-s` flag:
 
-* Local PDF file path (`-f`, `--file-path`)
+* Local PDF file path
 * Direct URL to a PDF file (`-u`, `--url`)
-* arXiv ID (`-a`, `--arxiv-id`)
-
-For URLs and arXiv IDs, the PDF is downloaded to a temporary file, analyzed, and then automatically deleted after use.
 
 ---
 

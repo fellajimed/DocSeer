@@ -32,9 +32,9 @@ jobs:
       - name: Build release distributions
         run: |
           # NOTE: put your own distribution build steps here.
-          python -m pip install pdm
-          pdm install
-          pdm build
+          python -m pip install uv
+          uv sync --frozen
+          uv build
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
