@@ -27,6 +27,21 @@ class DocRequest(BaseModel):
     doc_path: str
 
 
+@app.get("/get_agent_history")
+def get_agent_chat_history():
+    return agent.chat_history
+
+
+@app.post("/clean_agent_history")
+def clean_agent_chat_history():
+    agent.clean_chat_history()
+
+
+@app.get("/get_processed_documents")
+def get_processed_documents():
+    return documents.cache
+
+
 @app.post("/process_document")
 async def process_document(req: DocRequest):
     """
