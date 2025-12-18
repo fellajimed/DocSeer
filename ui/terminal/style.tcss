@@ -1,74 +1,45 @@
-#body {
-    layout: horizontal;
+MainApp ContentSwitcher {
     height: 1fr;
-    background: transparent;
-}
-
-Screen {
-    background: $surface;
-}
-
-#chat-log {
-    height: 1fr;
-    padding: 2;
-    scrollbar-gutter: stable;
-    scrollbar-size-vertical: 1;
-}
-
-#sidebar {
-    width: 25;
-    background: $surface;
-    color: $text;
-    padding: 1;
-    display: none;
-}
-
-.sidebar-title {
-    text-style: bold;
-    margin-bottom: 1;
-    color: $accent;
-}
-
-.menu-item {
-    padding: 0 1;
-    margin-bottom: 1;
-    background: $boost;
-}
-
-ChatMessage {
     width: 100%;
-    height: auto;
-    margin: 0 0 1 0;
 }
 
-#input {
-    dock: bottom;
-    height: auto;
-    margin: 0 1 0 0;
-    padding: 0 1;
+MainApp #main_window {
+    height: 90%;
 }
 
-Footer {
-    background: $surface;
-    color: $text;
-    padding: 0 4 0 0;
+MainApp #nav_bar {
+    height: 3;
+    layout: horizontal;
+    background: $panel;
 }
 
-
-
-ChatMessage LoadingIndicator {
-    align-horizontal: left;
-
-    width: 8 !important;
-    height: 1 !important;
-
-    content-align: left middle;
-
+MainApp #nav_bar Tabs {
+    margin-left: 4;
+    height: 3;
+    width: 3fr;
     background: transparent;
-    margin-left: 1;
-    dock: left;
 }
 
-ChatMessage LoadingIndicator > .loading-indicator--dot {
-    align-horizontal: left;
+MainApp #nav_bar Tab {
+    margin-left: 2;
+    margin-right: 2;
+}
+
+MainApp #nav_bar Button {
+    border: none;
+    margin-left: 3;
+    margin-right: 3;
+    margin-bottom: 1;
+    padding: 0;
+    width: 17;
+    min-width: 15;
+    height: 2;
+}
+
+MainApp .title {
+    width: 100%;
+    text-align: center;
+    background: $accent 10%;
+    color: $accent;
+    margin: 2 0;
 }

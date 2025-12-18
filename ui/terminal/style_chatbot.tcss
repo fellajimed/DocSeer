@@ -1,0 +1,55 @@
+ChatbotWidget #body {
+    layout: horizontal;
+    height: 1fr;
+    background: transparent;
+}
+
+ChatbotWidget {
+    width: 100%;
+    height: 100%;
+    layout: vertical;
+}
+
+ChatbotWidget Screen {
+    background: $surface;
+}
+
+ChatbotWidget #chat-log {
+    height: 1fr;
+    padding: 2;
+    scrollbar-gutter: stable;
+    scrollbar-size-vertical: 1;
+}
+
+ChatbotWidget ChatMessage {
+    width: 100%;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+
+ChatbotWidget SubmitTextArea {
+    dock: bottom;
+    height: 3;
+    width: 100%;
+    margin: 0;
+    padding: 0 1;
+    border: tall $primary; 
+}
+
+ChatbotWidget ChatMessage LoadingIndicator {
+    align-horizontal: left;
+
+    width: 8 !important;
+    height: 1 !important;
+
+    content-align: left middle;
+
+    background: transparent;
+    margin-left: 1;
+    dock: left;
+}
+
+ChatbotWidget ChatMessage LoadingIndicator > .loading-indicator--dot {
+    align-horizontal: left;
+}

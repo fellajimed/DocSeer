@@ -1,0 +1,106 @@
+DocumentsExplorerWidget {
+    height: 100%;
+    width: 100%;
+    layout: vertical;
+}
+
+
+DocumentsExplorerWidget #main_container {
+    height: 95%
+}
+
+/* Main Layout */
+DocumentsExplorerWidget Horizontal {
+    height: 1fr;
+}
+
+DocumentsExplorerWidget SelectionList {
+    width: 60%; /* Left side */
+    height: 100%;
+    border: tall $primary;
+}
+
+DocumentsExplorerWidget #sidebar {
+    width: 40%; /* Right side */
+    height: 100%;
+}
+
+DocumentsExplorerWidget ContentSwitcher {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+}
+
+/* Top half of the right side */
+DocumentsExplorerWidget #selected_view {
+    width: 100%;
+    height: 70%;
+    border: tall $secondary;
+    background: $surface;
+    padding: 1 2;
+    overflow-y: scroll;
+}
+
+/* Bottom half (Confirmation/Action Area) */
+DocumentsExplorerWidget #action_area {
+    height: 30%; /* Fixed bottom area */
+    border: tall $warning;
+    align: center middle;
+    padding: 0 1;
+    text-align: center;
+}
+
+DocumentsExplorerWidget #confirm_msg {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+    align: center middle;
+    text-align: center;
+}
+
+DocumentsExplorerWidget #button_row {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
+DocumentsExplorerWidget #button_row Button {
+    height: 3;
+    width: 12;
+    min-width: 0;
+    margin: 0 6;
+    content-align: center middle; 
+    text-align: center;
+    padding: 0;
+    border: none;
+}
+
+DocumentsExplorerWidget #button_row Button > .textual--button-label {
+    width: 100%;
+    text-align: center;
+}
+
+DocumentsExplorerWidget #launch_state {
+    width: 80%;
+}
+
+DocumentsExplorerWidget #input_bar {
+    height: auto;
+    min-height: 5;
+    border: tall $primary;
+    padding: 0 1;
+    background: $panel;
+    width: 100%;
+    margin-top: 1;
+    layout: horizontal; 
+}
+
+DocumentsExplorerWidget #input_bar Input {
+    width: 1fr;
+    min-width: 10;
+}
+
+DocumentsExplorerWidget #add_btn {
+    width: 16;
+    margin-left: 1;
+}
