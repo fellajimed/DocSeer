@@ -10,7 +10,7 @@ SERVICE_URLS = {
     "pdf2md": "http://localhost:8001",
     "chunking": "http://localhost:8002",
     "retriever": "http://localhost:8003",
-    "chatbot": "http://localhost:8004",
+    "chatbot": "http://localhost:8000",
 }
 
 
