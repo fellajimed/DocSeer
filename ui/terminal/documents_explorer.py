@@ -24,15 +24,24 @@ class DocumentsExplorerWidget(Static):
         super().__init__(*args, **kwargs)
         # mappping source to id
         self._documents = dict()
+        self._selected_items = set()
 
     @property
     def documents(self):
         return self._documents
 
+    @property
+    def selected_items(self):
+        return self._selected_items
+
     def compose(self) -> ComposeResult:
         with Vertical(id="main_container"):
             with Horizontal():
-                yield SelectionList[str](id="doc_selector")
+                with Vertical(id="selectionlist"):
+                    yield Input(
+                        placeholder="Search documents ...", id="search_input"
+                    )
+                    yield SelectionList[str](id="doc_selector")
 
                 with Vertical(id="sidebar"):
                     yield Label(id="selected_view")
@@ -54,11 +63,11 @@ class DocumentsExplorerWidget(Static):
                                     yield Button(
                                         "No!!", variant="error", id="no"
                                     )
-            with Horizontal(id="input_bar"):
-                yield Input(
-                    placeholder="Enter new item name...", id="new_item_input"
-                )
-                yield Button("Add Element", id="add_btn")
+        with Horizontal(id="input_bar"):
+            yield Input(
+                placeholder="Enter new item name...", id="new_item_input"
+            )
+            yield Button("Add Element", id="add_btn")
 
     async def fetch_documents(self):
         try:
@@ -82,11 +91,35 @@ class DocumentsExplorerWidget(Static):
         view = self.query_one("#selected_view")
         view.border_title = "Selected papers to delete from the database"
 
+    @on(Input.Changed, "#search_input")
+    def filter_docs(self, event: Input.Changed) -> None:
+        query = event.value.lower()
+        selection_list = self.query_one("#doc_selector", SelectionList)
+
+        selection_list.clear_options()
+        selection_list.add_options(
+            [
+                Selection(v, v, (v in self._selected_items))
+                for v in self._documents.keys()
+                if query in v.lower()
+            ]
+        )
+
     @on(Mount)
     @on(SelectionList.SelectedChanged)
     def update_selected_view(self) -> None:
-        selected_items = self.query_one(SelectionList).selected
-        formatted_text = "\n".join(f"• {item}" for item in selected_items)
+        selection_list = self.query_one("#doc_selector", SelectionList)
+        selected_items = set(selection_list.selected)
+        unselected_items = {
+            item
+            for item in selection_list._values.keys()
+            if item not in selected_items
+        }
+        self._selected_items |= selected_items
+        self._selected_items -= unselected_items
+        formatted_text = "\n".join(
+            f"• {item}" for item in self._selected_items
+        )
         self.query_one("#selected_view").update(formatted_text)
 
     @on(Button.Pressed, "#launch_state")
@@ -100,8 +133,7 @@ class DocumentsExplorerWidget(Static):
 
     @on(Button.Pressed, "#yes")
     async def handle_submit(self) -> None:
-        selected = self.query_one(SelectionList)
-        values = set(selected.selected)
+        values = self._selected_items
         self.query_one(ContentSwitcher).current = "launch_state"
         self.query_one("#selected_view").update("")
 
@@ -112,8 +144,10 @@ class DocumentsExplorerWidget(Static):
         self._documents = {
             k: v for (k, v) in self._documents.items() if k not in values
         }
-        selected.clear_options()
-        selected.add_options([Selection(x, x) for x in self._documents])
+        selection_list = self.query_one("#doc_selector", SelectionList)
+        selection_list.clear_options()
+        selection_list.add_options([Selection(x, x) for x in self._documents])
+        self._selected_items = {}
 
         try:
             async with httpx.AsyncClient(
@@ -167,8 +201,8 @@ class DocumentsExplorerWidget(Static):
         except Exception as e:
             self.notify(f"Error: {str(e)}", severity="error")
 
-        selected = self.query_one(SelectionList)
-        selected.clear_options()
-        selected.add_options([Selection(x, x) for x in self._documents])
+        selection_list = self.query_one("#doc_selector", SelectionList)
+        selection_list.clear_options()
+        selection_list.add_options([Selection(x, x) for x in self._documents])
 
         self.notify(f"Added: {doc_path}")

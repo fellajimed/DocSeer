@@ -5,22 +5,32 @@ DocumentsExplorerWidget {
 }
 
 DocumentsExplorerWidget #main_container {
-    height: 95%
+    height: auto;
+    margin: 1 0 1 0;
+    padding-bottom: 1;
 }
 
-/* Main Layout */
 DocumentsExplorerWidget Horizontal {
     height: 1fr;
 }
 
-DocumentsExplorerWidget SelectionList {
-    width: 60%; /* Left side */
+DocumentsExplorerWidget #selectionlist {
+    width: 60%;
     height: 100%;
+}
+
+DocumentsExplorerWidget #search_input {
+    margin-bottom: 1;
+    border: tall $primary;
+}
+
+DocumentsExplorerWidget #doc_selector {
+    height: 1fr;
     border: tall $primary;
 }
 
 DocumentsExplorerWidget #sidebar {
-    width: 40%; /* Right side */
+    width: 40%;
     height: 100%;
 }
 
@@ -30,7 +40,6 @@ DocumentsExplorerWidget ContentSwitcher {
     align: center middle;
 }
 
-/* Top half of the right side */
 DocumentsExplorerWidget #selected_view {
     width: 100%;
     height: 70%;
@@ -38,11 +47,12 @@ DocumentsExplorerWidget #selected_view {
     background: $surface;
     padding: 1 2;
     overflow-y: scroll;
+    margin-bottom: 1;
+    text-wrap: nowrap;
 }
 
-/* Bottom half (Confirmation/Action Area) */
 DocumentsExplorerWidget #action_area {
-    height: 30%; /* Fixed bottom area */
+    height: 30%;
     border: tall $warning;
     align: center middle;
     padding: 0 1;
@@ -84,13 +94,14 @@ DocumentsExplorerWidget #launch_state {
 }
 
 DocumentsExplorerWidget #input_bar {
+    dock: bottom;
     height: auto;
-    min-height: 5;
+    min-height: 3;
     border: tall $primary;
     padding: 0 1;
     background: $panel;
     width: 100%;
-    margin-top: 1;
+    margin: 1 0 0 0;
     layout: horizontal; 
 }
 

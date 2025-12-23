@@ -54,7 +54,7 @@ class ChatMessage(Static):
 
         panel = Panel(
             Markdown(self.content),
-            style="white" if self.is_user else "magenta",
+            style="white",
             border_style="green" if self.is_user else "magenta",
             width=width,
             padding=(0, 1),

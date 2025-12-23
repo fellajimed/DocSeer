@@ -52,7 +52,13 @@ class MainApp(App):
 
     @on(Tabs.TabActivated)
     def handle_tab_switch(self, event: Tabs.TabActivated) -> None:
-        self.query_one(ContentSwitcher).current = event.tab.id
+        tab_id = event.tab.id
+        self.query_one(ContentSwitcher).current = tab_id
+
+        if tab_id == "tab_chat":
+            self.query_one("#input").focus()
+        elif tab_id == "tab_files":
+            self.query_one("#doc_selector").focus()
 
     def _clear_chat(self) -> None:
         chat_window = self.query_one("#tab_chat", ChatbotWidget)
