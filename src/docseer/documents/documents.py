@@ -51,7 +51,7 @@ class Documents:
 
     @property
     def cache(self):
-        return self.history_path2ids
+        return json.loads(self.cache_path.read_text(encoding="utf-8"))
 
     @property
     def docs_to_process(self):
