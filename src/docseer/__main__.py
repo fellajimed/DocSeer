@@ -2,19 +2,28 @@ import os
 import sys
 import asyncio
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 from . import CACHE_FOLDER, MODEL_EMBEDDINGS, LLM_MODEL, SMALL_LLM_MODEL
 
 from .documents import Documents
 from .converters import DocConverter
-from .chunkers import DoclingChunker
+from .chunkers import ParentChildChunker
 from .databases import ChromaVectorDB, LocalFileStoreDB
 from .retrievers import Retriever, MultiStepsRetriever
 from .agents import BasicAgent
 from .ui import ConsoleUI
 
 import logging
+
+
+def cache_source(documents, future):
+    try:
+        doc = future.result()
+        documents.cache_source(doc)
+    except Exception as e:
+        print(e)
 
 
 def disable_logs():
@@ -82,6 +91,7 @@ def main(
     index: bool = False,
 ):
     max_workers = n_workers or os.cpu_count() or 4
+    callback = partial(cache_source, documents)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
@@ -96,8 +106,8 @@ def main(
             for doc, doc_id in documents.docs_to_process
         ]
 
-        for future in as_completed(futures):
-            documents.cache_source(future.result())
+        for future in futures:
+            future.add_done_callback(callback)
 
     if not index:
         # disable logs for a clean UI
@@ -142,14 +152,16 @@ async def amain(
     agent,
     index: bool = False,
 ):
-    tasks = [
-        aprocess_document(doc, doc_id, doc_converter, chunker, retriever)
-        for doc, doc_id in documents.docs_to_process
-    ]
-    results = await asyncio.gather(*tasks)
+    callback = partial(cache_source, documents)
 
-    for doc in results:
-        documents.cache_source(doc)
+    async with asyncio.TaskGroup() as tg:
+        for doc, doc_id in documents.docs_to_process:
+            task = tg.create_task(
+                aprocess_document(
+                    doc, doc_id, doc_converter, chunker, retriever
+                )
+            )
+            task.add_done_callback(callback)
 
     if not index:
         # disable logs for a clean UI
@@ -185,8 +197,7 @@ def run():
 
     documents = Documents(args.source)
     doc_converter = DocConverter()
-    # chunker = ParentChildChunker()
-    chunker = DoclingChunker(chunking_strat="hierarchical")
+    chunker = ParentChildChunker()
 
     vector_db = ChromaVectorDB(
         MODEL_EMBEDDINGS, 32, CACHE_FOLDER / "embeds_db"
