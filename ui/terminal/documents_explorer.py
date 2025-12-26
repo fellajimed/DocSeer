@@ -39,7 +39,7 @@ class DocumentsExplorerWidget(Static):
             with Horizontal():
                 with Vertical(id="selectionlist"):
                     yield Input(
-                        placeholder="Search documents ...", id="search_input"
+                        placeholder="Search papers ...", id="search_input"
                     )
                     yield SelectionList[str](id="doc_selector")
 
@@ -65,9 +65,10 @@ class DocumentsExplorerWidget(Static):
                                     )
         with Horizontal(id="input_bar"):
             yield Input(
-                placeholder="Enter new item name...", id="new_item_input"
+                placeholder="Enter path/url to new paper ...",
+                id="new_item_input",
             )
-            yield Button("Add Element", id="add_btn")
+            yield Button("Add Paper", id="add_btn")
 
     async def fetch_documents(self):
         try:
@@ -185,6 +186,7 @@ class DocumentsExplorerWidget(Static):
         self.focus(input_block)
 
         doc_path = doc_path.strip()
+        is_added = False
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(60.0)
@@ -193,16 +195,19 @@ class DocumentsExplorerWidget(Static):
                     f"{URL}/process_document", json={"doc_path": doc_path}
                 )
                 if response.is_success:
+                    is_added = True
                     # avoid fetching the data
                     document_id = response.json()["document_id"]
                     self._documents[doc_path] = document_id
+                    self.notify(f"Added: {doc_path}")
                 else:
                     self.notify(f"Could not add {doc_path}", severity="error")
         except Exception as e:
             self.notify(f"Error: {str(e)}", severity="error")
 
+        if not is_added:
+            return
+
         selection_list = self.query_one("#doc_selector", SelectionList)
         selection_list.clear_options()
         selection_list.add_options([Selection(x, x) for x in self._documents])
-
-        self.notify(f"Added: {doc_path}")

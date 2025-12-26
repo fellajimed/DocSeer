@@ -143,6 +143,7 @@ class ChatbotWidget(Static):
                             bot_bubble.loading = False
                         bot_bubble.content += chunk
                         bot_bubble.scroll_visible()
+
         except Exception as e:
             bot_bubble.content = f"Error: {str(e)}"
             bot_bubble.loading = False

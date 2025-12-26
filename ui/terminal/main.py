@@ -30,7 +30,7 @@ class MainApp(App):
         with Horizontal(id="nav_bar"):
             yield Tabs(
                 Tab("Chat", id="tab_chat"),
-                Tab("Files", id="tab_files"),
+                Tab("Papers", id="tab_files"),
                 # Tab("Logs", id="tab_logs"),
             )
             yield Button(
