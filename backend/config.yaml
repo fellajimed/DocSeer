@@ -1,0 +1,6 @@
+llm_model:
+  num_ctx: 4096
+  temperature: 0.7
+
+retriever:
+  topk: 3

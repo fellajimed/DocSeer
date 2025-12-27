@@ -1,10 +1,13 @@
 import httpx
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
+from langchain_ollama.llms import OllamaLLM
 from docseer.agents import BasicAgent
-from docseer import LLM_MODEL
 from docseer.documents import Documents
+from docseer.config import read_config, get_main_config
 
 SERVICE_URLS = {
     "pdf2md": "http://localhost:8001",
@@ -14,9 +17,28 @@ SERVICE_URLS = {
 }
 
 
-app = FastAPI()
-documents = Documents()
-agent = BasicAgent(LLM_MODEL)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.documents = Documents()
+
+    config_path = (
+        Path(__file__).resolve().absolute().parents[1] / "config.yaml"
+    )
+    config = get_main_config(read_config(config_path))
+    llm_model = OllamaLLM(**config["llm_model"])
+    app.state.agent = BasicAgent(llm_model)
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def get_documents(request: Request):
+    return request.app.state.documents
+
+
+def get_agent(request: Request):
+    return request.app.state.agent
 
 
 class QueryRequest(BaseModel):
@@ -28,22 +50,24 @@ class DocRequest(BaseModel):
 
 
 @app.get("/get_agent_history")
-def get_agent_chat_history():
+def get_agent_chat_history(request: Request, agent=Depends(get_agent)):
     return agent.chat_history
 
 
 @app.post("/clean_agent_history")
-def clean_agent_chat_history():
+def clean_agent_chat_history(request: Request, agent=Depends(get_agent)):
     agent.clean_chat_history()
 
 
 @app.get("/get_processed_documents")
-def get_processed_documents():
-    return documents.cache
+def get_processed_documents(request: Request):
+    return request.app.state.documents.cache
 
 
 @app.post("/process_document")
-async def process_document(req: DocRequest):
+async def process_document(
+    req: DocRequest, request: Request, documents=Depends(get_documents)
+):
     """
     Get the chunks from the file, and update the vector DB
     """
@@ -89,7 +113,9 @@ async def process_document(req: DocRequest):
 
 
 @app.delete("/delete_document")
-async def delete_document(req: DocRequest):
+async def delete_document(
+    req: DocRequest, request: Request, documents=Depends(get_documents)
+):
     if req.doc_path not in documents.cache:
         return {"status": "success", "detail": "document not in database"}
 
@@ -115,7 +141,9 @@ async def delete_document(req: DocRequest):
 
 
 @app.post("/stream")
-async def stream(req: QueryRequest):
+async def stream(
+    req: QueryRequest, request: Request, agent=Depends(get_agent)
+):
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
         try:
             response = await client.post(
@@ -134,7 +162,9 @@ async def stream(req: QueryRequest):
 
 
 @app.post("/invoke")
-async def invoke(req: QueryRequest):
+async def invoke(
+    req: QueryRequest, request: Request, agent=Depends(get_agent)
+):
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
         try:
             response = await client.post(

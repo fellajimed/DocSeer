@@ -1,10 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Depends
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 from langchain_core.documents import Document
 from docseer.chunkers import ParentChildChunker
 
-app = FastAPI()
-chunker = ParentChildChunker()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.chunker = ParentChildChunker()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def get_chunker(request: Request):
+    return request.app.state.chunker
 
 
 class ChunkRequest(BaseModel):
@@ -24,7 +35,9 @@ class ChunkResponse(BaseModel):
 
 
 @app.post("/chunk", response_model=ChunkResponse)
-async def chunk_document(req: ChunkRequest):
+async def chunk_document(
+    req: ChunkRequest, request: Request, chunker=Depends(get_chunker)
+):
     result = await chunker.achunk(req.content, req.document_id)
     return {
         "document": req.document,
