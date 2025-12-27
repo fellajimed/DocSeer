@@ -11,7 +11,7 @@ class ContentExtractor:
         # code detection
         pipeline_options.do_code_enrichment = True
         # formulas detection
-        pipeline_options.do_formula_enrichment = True
+        pipeline_options.do_formula_enrichment = False
 
         self.converter = DocumentConverter(
             format_options={

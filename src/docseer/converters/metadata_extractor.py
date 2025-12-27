@@ -1,7 +1,3 @@
-"""
-docker run -t --rm -p 8070:8070 grobid/grobid:0.8.2-crf
-"""
-
 from .utils import extract_metadata
 
 
