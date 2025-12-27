@@ -81,16 +81,20 @@ class DocumentsExplorerWidget(Static):
             self.notify(f"Error: {str(e)}", severity="error")
 
     async def on_mount(self) -> None:
-        await self.fetch_documents()
-        selection_list = self.query_one("#doc_selector", SelectionList)
-        selection_list.clear_options()
-        selection_list.add_options(
-            [Selection(v, v) for v in self._documents.keys()]
-        )
-        selection_list.border_title = "All papers in the database"
+        async def wait_for_servers():
+            await asyncio.sleep(2)
+            await self.fetch_documents()
+            selection_list = self.query_one("#doc_selector", SelectionList)
+            selection_list.clear_options()
+            selection_list.add_options(
+                [Selection(v, v) for v in self._documents.keys()]
+            )
+            selection_list.border_title = "All papers in the database"
 
-        view = self.query_one("#selected_view")
-        view.border_title = "Selected papers to delete from the database"
+            view = self.query_one("#selected_view")
+            view.border_title = "Selected papers to delete from the database"
+
+        asyncio.create_task(wait_for_servers())
 
     @on(Input.Changed, "#search_input")
     def filter_docs(self, event: Input.Changed) -> None:

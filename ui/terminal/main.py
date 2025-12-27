@@ -13,6 +13,7 @@ from textual.widgets import (
 
 from chatbot import ChatbotWidget, URL
 from documents_explorer import DocumentsExplorerWidget
+from honcho_servers import HonchoLogWidget
 
 
 class MainApp(App):
@@ -31,7 +32,7 @@ class MainApp(App):
             yield Tabs(
                 Tab("Chat", id="tab_chat"),
                 Tab("Papers", id="tab_files"),
-                # Tab("Logs", id="tab_logs"),
+                Tab("Logs", id="tab_logs"),
             )
             yield Button(
                 "Clear Chat History", id="btn_clear_chat", variant="warning"
@@ -44,9 +45,7 @@ class MainApp(App):
             with ContentSwitcher(initial="tab_chat"):
                 yield ChatbotWidget(id="tab_chat")
                 yield DocumentsExplorerWidget(id="tab_files")
-
-                # with VerticalScroll(id="tab_logs"):
-                #     yield Label("System Logs", variant="title")
+                yield HonchoLogWidget(id="tab_logs")
 
         yield Footer()
 
