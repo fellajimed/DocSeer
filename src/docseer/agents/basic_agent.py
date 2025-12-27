@@ -38,7 +38,7 @@ the question.
 
 
 class BasicAgent:
-    def __init__(self, llm_model):
+    def __init__(self, llm_model, max_turns: int | None = None):
         self.template = SYSTEM_TEMPLATE
 
         self.model = llm_model
@@ -52,9 +52,16 @@ class BasicAgent:
         self.chain = self.prompt | self.model
 
         self.chat_history = ChatMessageHistory()
+        self.max_turns = max_turns
 
     def clean_chat_history(self):
         self.chat_history = ChatMessageHistory()
+
+    def _update_chat_history(self, query: str, response: str):
+        self.chat_history.add_message(HumanMessage(content=query))
+        self.chat_history.add_message(AIMessage(content=response))
+        if self.max_turns is not None:
+            self.chat_history = self.chat_history[-2 * self.max_turns :]
 
     def stream(self, query: str, context: list[str | Document]):
         context_md = docs_to_md(context)
@@ -71,8 +78,7 @@ class BasicAgent:
             response += chunk
             yield chunk
 
-        self.chat_history.add_message(HumanMessage(content=query))
-        self.chat_history.add_message(AIMessage(content=response))
+        self._update_chat_history(query, response)
 
     async def astream(self, query: str, context: list[str | Document]):
         context_md = docs_to_md(context)
@@ -89,8 +95,7 @@ class BasicAgent:
             response += chunk
             yield chunk
 
-        self.chat_history.add_message(HumanMessage(content=query))
-        self.chat_history.add_message(AIMessage(content=response))
+        self._update_chat_history(query, response)
 
     def invoke(self, query: str, context: list[str | Document]) -> str:
         context_md = docs_to_md(context)
@@ -103,9 +108,7 @@ class BasicAgent:
                 }
             )
 
-            self.chat_history.add_message(HumanMessage(content=query))
-            self.chat_history.add_message(AIMessage(content=response))
-
+            self._update_chat_history(query, response)
             return response
 
     async def ainvoke(self, query: str, context: list[str | Document]) -> str:
@@ -119,7 +122,5 @@ class BasicAgent:
                 }
             )
 
-            self.chat_history.add_message(HumanMessage(content=query))
-            self.chat_history.add_message(AIMessage(content=response))
-
+            self._update_chat_history(query, response)
             return response
