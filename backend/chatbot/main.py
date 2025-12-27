@@ -129,7 +129,7 @@ async def stream(req: QueryRequest):
         except httpx.RequestError:
             raise HTTPException(status_code=503)
     return StreamingResponse(
-        agent.astream(req.query, context), media_type="text/markdown"
+        agent.astream(req.query, [context]), media_type="text/markdown"
     )
 
 
@@ -147,5 +147,5 @@ async def invoke(req: QueryRequest):
             raise HTTPException(status_code=400)
         except httpx.RequestError:
             raise HTTPException(status_code=503)
-    response = await agent.ainvoke(req.query, context)
+    response = await agent.ainvoke(req.query, [context])
     return {"response": response}
