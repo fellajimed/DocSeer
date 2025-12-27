@@ -4,9 +4,11 @@ import asyncio
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from langchain_ollama.llms import OllamaLLM
+from langchain_ollama import OllamaEmbeddings
 
-from . import CACHE_FOLDER, MODEL_EMBEDDINGS, LLM_MODEL, SMALL_LLM_MODEL
-
+from . import CACHE_FOLDER
+from .config import read_config, get_main_config
 from .documents import Documents
 from .converters import DocConverter
 from .chunkers import ParentChildChunker
@@ -173,6 +175,7 @@ def parse_args():
     parser = argparse.ArgumentParser("DocSeer")
 
     parser.add_argument("-s", "--source", type=str, nargs="*", default=[])
+    parser.add_argument("--config", type=dict, default=None)
     parser.add_argument("--n-workers", type=int, default=None)
     parser.add_argument("--keep-db", action="store_true")
     parser.add_argument("--sync", action="store_true")
@@ -195,20 +198,35 @@ def run():
     if not (args.show_logs or args.index):
         disable_logs()
 
+    user_config = read_config(args.config) if args.config is not None else None
+    config = get_main_config(user_config)
+
+    model_embeddings = OllamaEmbeddings(**config["model_embeddings"])
+    llm_model = OllamaLLM(**config["llm_model"])
+    small_llm_model = (
+        None
+        if config.get("small_llm_model") is None
+        else OllamaLLM(**config["small_llm_model"])
+    )
+
     documents = Documents(args.source)
     doc_converter = DocConverter()
     chunker = ParentChildChunker()
 
+    batch_size = config.get("chromavectordb", dict()).get("batch_size", 128)
     vector_db = ChromaVectorDB(
-        MODEL_EMBEDDINGS, 32, CACHE_FOLDER / "embeds_db"
+        model_embeddings, batch_size, CACHE_FOLDER / "embeds_db"
     )
     docstore = LocalFileStoreDB(CACHE_FOLDER / "docstore_db")
 
-    base_retriever = Retriever(vector_db=vector_db, docstore=docstore, topk=2)
-    retriever = MultiStepsRetriever.init(
-        base_retriever=base_retriever, llm=SMALL_LLM_MODEL
+    topk = config.get("retriever", dict()).get("topk", 3)
+    base_retriever = Retriever(
+        vector_db=vector_db, docstore=docstore, topk=topk
     )
-    agent = BasicAgent(LLM_MODEL)
+    retriever = MultiStepsRetriever.init(
+        base_retriever=base_retriever, llm=small_llm_model
+    )
+    agent = BasicAgent(llm_model)
 
     if args.sync:
         main(

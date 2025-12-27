@@ -1,0 +1,16 @@
+model_embeddings:
+  model: "mxbai-embed-large"
+
+llm_model:
+  model: "gemma3:4b-it-q4_K_M"
+  temperature: 0.5
+  top_p: 0.1
+  streaming: false
+
+small_llm_model:
+
+retriever:
+  topk: 3
+
+chromavectordb:
+  batch_size: 128
