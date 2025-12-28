@@ -1,0 +1,9 @@
+HonchoLogWidget {
+    height: 100%;
+}
+
+HonchoLogWidget Log {
+    height: 100%;
+    scrollbar-gutter: stable;
+    scrollbar-size: 1 1;
+}

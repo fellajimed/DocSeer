@@ -17,7 +17,12 @@ from honcho_servers import HonchoLogWidget
 
 
 class MainApp(App):
-    CSS_PATH = ["style.tcss", "style_chatbot.tcss", "style_docs.tcss"]
+    CSS_PATH = [
+        "style.tcss",
+        "style_chatbot.tcss",
+        "style_docs.tcss",
+        "style_honcho_logs.tcss",
+    ]
 
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),

@@ -8,16 +8,6 @@ PROCFILE = Path(__file__).resolve().absolute().parents[2] / "Procfile"
 
 
 class HonchoLogWidget(Static):
-    DEFAULT_CSS = """
-    HonchoLogWidget {
-        height: 100%;
-    }
-
-    HonchoLogWidget Log {
-        height: 100%;
-    }
-    """
-
     def __init__(self, procfile: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self.procfile = procfile or str(PROCFILE)
