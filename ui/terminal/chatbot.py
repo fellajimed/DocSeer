@@ -2,7 +2,8 @@ import httpx
 from rich.panel import Panel
 from rich.align import Align
 from rich.markdown import Markdown
-from textual.events import Key
+from textual import on
+from textual.events import Key, MouseScrollUp, MouseScrollDown
 from textual.app import ComposeResult
 from textual.widgets import Static, TextArea
 from textual.containers import VerticalScroll, Vertical
@@ -66,6 +67,16 @@ class ChatMessage(Static):
             return Align.left(panel, width=console_width)
 
 
+class ChatContainer(VerticalScroll):
+    autoscroll = True
+
+    @on(MouseScrollUp)
+    @on(MouseScrollDown)
+    def handle_mouse_scroll(self) -> None:
+        if self.autoscroll:
+            self.autoscroll = False
+
+
 class ChatbotWidget(Static):
     def __init__(self, is_stream: bool = True, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -73,7 +84,7 @@ class ChatbotWidget(Static):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="chat-container"):
-            with VerticalScroll(id="chat-log") as vs:
+            with ChatContainer(id="chat-log") as vs:
                 vs.can_focus = False
             yield SubmitTextArea(
                 id="input",
@@ -81,7 +92,7 @@ class ChatbotWidget(Static):
             )
 
     async def on_mount(self) -> None:
-        self.chat_log = self.query_one("#chat-log", VerticalScroll)
+        self.chat_log = self.query_one("#chat-log", ChatContainer)
         self.input = self.query_one("#input", SubmitTextArea)
         self.input.focus()
 
