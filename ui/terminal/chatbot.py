@@ -81,6 +81,8 @@ class ChatbotWidget(Static):
     def __init__(self, is_stream: bool = True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.is_stream = is_stream
+        self.user_bubble = None
+        self.bot_bubble = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="chat-container"):
@@ -103,10 +105,10 @@ class ChatbotWidget(Static):
         if not user_text:
             return
 
-        user_bubble = ChatMessage(user_text, is_user=True)
-        await self.chat_log.mount(user_bubble)
+        self.user_bubble = ChatMessage(user_text, is_user=True)
+        await self.chat_log.mount(self.user_bubble, after=self.bot_bubble)
 
-        user_bubble.scroll_visible()
+        self.call_after_refresh(self.chat_log.scroll_end)
 
         if self.is_stream:
             self.run_worker(self.stream_agent(user_text))
@@ -114,9 +116,10 @@ class ChatbotWidget(Static):
             self.run_worker(self.invoke_agent(user_text))
 
     async def invoke_agent(self, prompt: str) -> None:
-        bot_bubble = ChatMessage(content="", is_user=False)
-        bot_bubble.loading = True
-        await self.chat_log.mount(bot_bubble)
+        self.bot_bubble = ChatMessage(content="", is_user=False)
+        self.bot_bubble.loading = True
+        await self.chat_log.mount(self.bot_bubble, after=self.user_bubble)
+        self.call_after_refresh(self.chat_log.scroll_end)
 
         try:
             async with httpx.AsyncClient(
@@ -127,18 +130,21 @@ class ChatbotWidget(Static):
                 )
                 response_text = response.json()["response"]
 
-            bot_bubble.loading = False
-            bot_bubble.content += response_text
-            bot_bubble.scroll_visible()
+            self.bot_bubble.loading = False
+            self.bot_bubble.content += response_text
+            self.call_after_refresh(self.chat_log.scroll_end)
 
         except Exception as e:
-            bot_bubble.content = f"Error: {str(e)}"
-            bot_bubble.loading = False
+            self.bot_bubble.content = f"Error: {str(e)}"
+            self.bot_bubble.loading = False
 
     async def stream_agent(self, prompt: str) -> None:
-        bot_bubble = ChatMessage(content="", is_user=False)
-        bot_bubble.loading = True
-        await self.chat_log.mount(bot_bubble)
+        self.bot_bubble = ChatMessage(content="", is_user=False)
+        self.bot_bubble.loading = True
+        await self.chat_log.mount(self.bot_bubble, after=self.user_bubble)
+
+        self.chat_log.autoscroll = True
+        self.call_after_refresh(self.chat_log.scroll_end)
 
         try:
             async with httpx.AsyncClient(
@@ -150,11 +156,12 @@ class ChatbotWidget(Static):
                     json={"query": prompt},
                 ) as response:
                     async for chunk in response.aiter_text():
-                        if bot_bubble.loading:
-                            bot_bubble.loading = False
-                        bot_bubble.content += chunk
-                        bot_bubble.scroll_visible()
+                        if self.bot_bubble.loading:
+                            self.bot_bubble.loading = False
+                        self.bot_bubble.content += chunk
+                        if self.chat_log.autoscroll:
+                            self.call_after_refresh(self.chat_log.scroll_end)
 
         except Exception as e:
-            bot_bubble.content = f"Error: {str(e)}"
-            bot_bubble.loading = False
+            self.bot_bubble.content = f"Error: {str(e)}"
+            self.bot_bubble.loading = False
