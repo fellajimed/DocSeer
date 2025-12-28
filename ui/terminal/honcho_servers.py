@@ -1,6 +1,5 @@
 import asyncio
 from pathlib import Path
-from textual.app import App
 from textual.widgets import Log, Static
 from textual.app import ComposeResult
 
@@ -52,24 +51,11 @@ class HonchoLogWidget(Static):
 
     async def _shutdown_honcho(self):
         if self.process:
-            try:
-                self.process.terminate()
-                await self.process.wait()
-            except Exception:
-                pass
+            self.process.terminate()
+            await self.process.wait()
         if self.log_task:
             self.log_task.cancel()
             try:
                 await self.log_task
             except asyncio.CancelledError:
                 pass
-
-    async def on_unmount(self) -> None:
-        await self._shutdown_honcho()
-
-    async def action_quit_app(self) -> None:
-        await self._shutdown_honcho()
-        self.exit()
-        app = self.app
-        if isinstance(app, App):
-            await app.action_quit()

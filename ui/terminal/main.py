@@ -88,6 +88,11 @@ class MainApp(App):
 
         self.notify("Agent history was cleared!", severity="warning")
 
+    async def action_quit(self) -> None:
+        log_window = self.query_one("#tab_logs", HonchoLogWidget)
+        await log_window._shutdown_honcho()
+        self.exit()
+
 
 if __name__ == "__main__":
     MainApp().run()
