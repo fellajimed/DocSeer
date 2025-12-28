@@ -51,8 +51,11 @@ class HonchoLogWidget(Static):
 
     async def _shutdown_honcho(self):
         if self.process:
-            self.process.terminate()
-            await self.process.wait()
+            try:
+                self.process.terminate()
+                await self.process.wait()
+            except Exception:
+                pass
         if self.log_task:
             self.log_task.cancel()
             try:
