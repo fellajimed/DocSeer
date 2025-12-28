@@ -71,18 +71,33 @@ class DocumentsExplorerWidget(Static):
             yield Button("Add Paper", id="add_btn")
 
     async def fetch_documents(self):
-        try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(60.0)
-            ) as client:
-                response = await client.get(f"{URL}/get_processed_documents")
-                self._documents = response.json()
-        except Exception as e:
-            self.notify(f"Error: {str(e)}", severity="error")
+        backoff = 0.2
+        max_backoff = 2.0
+        deadline = asyncio.get_event_loop().time() + 10
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600)) as client:
+            while True:
+                try:
+                    response = await client.get(
+                        f"{URL}/get_processed_documents"
+                    )
+                    response.raise_for_status()
+                    self._documents = response.json()
+                    return
+
+                except httpx.ConnectError:
+                    if asyncio.get_event_loop().time() > deadline:
+                        self.notify(
+                            "Service did not become available",
+                            severity="error",
+                        )
+                        raise
+
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, max_backoff)
 
     async def on_mount(self) -> None:
         async def wait_for_servers():
-            await asyncio.sleep(2)
             await self.fetch_documents()
             selection_list = self.query_one("#doc_selector", SelectionList)
             selection_list.clear_options()
