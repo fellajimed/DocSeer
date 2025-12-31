@@ -4,12 +4,13 @@ from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 from langchain_classic.retrievers.document_compressors import LLMChainExtractor
+from .async_flashrankrerank import AsyncFlashrankRerank
 
 
 class MultiStepsRetriever(BaseRetriever):
     base_retriever: BaseRetriever = Field(...)
     llm: Any = Field(None)
-    reranker: Any = Field(None)
+    reranker: AsyncFlashrankRerank | None = Field(None)
     extractor: LLMChainExtractor | None = Field(None)
     multi_query: MultiQueryRetriever | None = Field(None)
     summarizer_llm: Any = Field(None)
@@ -24,6 +25,7 @@ class MultiStepsRetriever(BaseRetriever):
         base_retriever: BaseRetriever,
         llm=None,
         reranker=None,
+        use_extractor=False,
         summarizer_llm=None,
         max_summary_tokens=2048,
     ):
@@ -31,7 +33,9 @@ class MultiStepsRetriever(BaseRetriever):
             multi = MultiQueryRetriever.from_llm(
                 retriever=base_retriever, llm=llm
             )
-            extractor = LLMChainExtractor.from_llm(llm)
+            extractor = (
+                LLMChainExtractor.from_llm(llm) if use_extractor else None
+            )
         else:
             multi = None
             extractor = None
@@ -84,12 +88,7 @@ class MultiStepsRetriever(BaseRetriever):
             docs = self.extractor.compress_documents(docs, query=query)
 
         if self.reranker is not None:
-            docs = self.reranker.rerank(
-                query=query,
-                documents=docs,
-                top_k=len(docs),
-            )
-            docs = [doc for doc, _ in docs]
+            docs = self.reranker.compress_documents(docs, query=query)
 
         if self.summarizer_llm:
             docs = self._summarize_if_needed(docs)
@@ -109,12 +108,7 @@ class MultiStepsRetriever(BaseRetriever):
             docs = await self.extractor.acompress_documents(docs, query=query)
 
         if self.reranker is not None:
-            docs = await self.reranker.arerank(
-                query=query,
-                documents=docs,
-                top_k=len(docs),
-            )
-            docs = [doc for doc, _ in docs]
+            docs = await self.reranker.acompress_documents(docs, query=query)
 
         if self.summarizer_llm:
             docs = await self._async_summarize_if_needed(docs)
@@ -144,25 +138,3 @@ class MultiStepsRetriever(BaseRetriever):
             f" all factual details:\n\n{full_text}"
         )
         return [Document(page_content=summary)]
-
-
-"""
-
-from langchain_openai import ChatOpenAI
-from my_reranker import MyReranker  # your reranker implementation
-
-llm = ChatOpenAI(model="gpt-4.1")
-summ_llm = ChatOpenAI(model="gpt-4.1-mini")
-reranker = MyReranker()
-
-smart_ret = SmartRetriever.from_components(
-    base_retriever=my_vector_retriever,
-    llm=llm,
-    reranker=reranker,
-    summarizer_llm=summ_llm,
-    max_summary_tokens=2048,
-)
-
-docs = smart_ret.get_relevant_documents("Explain quantum transformers")
-
-"""
