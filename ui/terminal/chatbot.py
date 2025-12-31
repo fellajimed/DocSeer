@@ -1,4 +1,3 @@
-import httpx
 from rich.panel import Panel
 from rich.align import Align
 from rich.markdown import Markdown
@@ -7,6 +6,9 @@ from textual.events import Key, MouseScrollUp, MouseScrollDown
 from textual.app import ComposeResult
 from textual.widgets import Static, TextArea
 from textual.containers import VerticalScroll, Vertical
+
+from utils import AsyncRequester
+
 
 URL = "http://localhost:8000"
 
@@ -83,6 +85,7 @@ class ChatbotWidget(Static):
         self.is_stream = is_stream
         self.user_bubble = None
         self.bot_bubble = None
+        self._async_requester = AsyncRequester()
 
     def compose(self) -> ComposeResult:
         with Vertical(id="chat-container"):
@@ -122,13 +125,14 @@ class ChatbotWidget(Static):
         self.call_after_refresh(self.chat_log.scroll_end)
 
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(60.0)
-            ) as client:
-                response = await client.post(
-                    f"{URL}/invoke", json={"query": prompt}
-                )
-                response_text = response.json()["response"]
+            response = await self._async_requester.request(
+                method="POST",
+                url=f"{URL}/invoke",
+                stream=False,
+                json={"query": prompt},
+            )
+            response.raise_for_status()
+            response_text = response.json()["response"]
 
             self.bot_bubble.loading = False
             self.bot_bubble.content += response_text
@@ -147,20 +151,19 @@ class ChatbotWidget(Static):
         self.call_after_refresh(self.chat_log.scroll_end)
 
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(60.0)
-            ) as client:
-                async with client.stream(
-                    "POST",
-                    f"{URL}/stream",
-                    json={"query": prompt},
-                ) as response:
-                    async for chunk in response.aiter_text():
-                        if self.bot_bubble.loading:
-                            self.bot_bubble.loading = False
-                        self.bot_bubble.content += chunk
-                        if self.chat_log.autoscroll:
-                            self.call_after_refresh(self.chat_log.scroll_end)
+            async with await self._async_requester.request(
+                method="POST",
+                url=f"{URL}/stream",
+                stream=True,
+                json={"query": prompt},
+            ) as response:
+                # response.raise_for_status()
+                async for chunk in response.aiter_text():
+                    if self.bot_bubble.loading:
+                        self.bot_bubble.loading = False
+                    self.bot_bubble.content += chunk
+                    if self.chat_log.autoscroll:
+                        self.call_after_refresh(self.chat_log.scroll_end)
 
         except Exception as e:
             self.bot_bubble.content = f"Error: {str(e)}"

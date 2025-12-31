@@ -1,4 +1,3 @@
-import httpx
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -14,6 +13,7 @@ from textual.widgets import (
 from chatbot import ChatbotWidget, URL
 from documents_explorer import DocumentsExplorerWidget
 from honcho_servers import HonchoLogWidget
+from utils import AsyncRequester
 
 
 class MainApp(App):
@@ -29,6 +29,10 @@ class MainApp(App):
         ("ctrl+q", "quit", "Quit"),
     ]
     TITLE = "DocSeer TUI"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._async_requester = AsyncRequester()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -84,10 +88,10 @@ class MainApp(App):
         self._clear_chat()
 
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(60.0)
-            ) as client:
-                await client.post(f"{URL}/clean_agent_history")
+            response = await self._async_requester.request(
+                method="POST", url=f"{URL}/clean_agent_history", stream=False
+            )
+            response.raise_for_status()
         except Exception as e:
             self.notify(f"Error: {str(e)}", severity="error")
 

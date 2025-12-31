@@ -1,5 +1,4 @@
 import asyncio
-import httpx
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -14,6 +13,9 @@ from textual.widgets import (
 )
 from textual.widgets.selection_list import Selection
 
+from utils import AsyncRequester
+
+
 URL = "http://localhost:8000"
 
 
@@ -25,6 +27,7 @@ class DocumentsExplorerWidget(Static):
         # mappping source to id
         self._documents = dict()
         self._selected_items = set()
+        self._async_requester = AsyncRequester()
 
     @property
     def documents(self):
@@ -71,30 +74,18 @@ class DocumentsExplorerWidget(Static):
             yield Button("Add Paper", id="add_btn")
 
     async def fetch_documents(self):
-        backoff = 0.2
-        max_backoff = 2.0
-        deadline = asyncio.get_event_loop().time() + 10
-
-        async with httpx.AsyncClient(timeout=httpx.Timeout(600)) as client:
-            while True:
-                try:
-                    response = await client.get(
-                        f"{URL}/get_processed_documents"
-                    )
-                    response.raise_for_status()
-                    self._documents = response.json()
-                    return
-
-                except httpx.ConnectError:
-                    if asyncio.get_event_loop().time() > deadline:
-                        self.notify(
-                            "Service did not become available",
-                            severity="error",
-                        )
-                        raise
-
-                    await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, max_backoff)
+        try:
+            response = await self._async_requester.request(
+                method="GET",
+                url=f"{URL}/get_processed_documents",
+                stream=False,
+            )
+            response.raise_for_status()
+            self._documents = response.json()
+            return
+        except Exception as e:
+            self.notify(f"Error: {str(e)}", severity="error")
+            raise e
 
     async def on_mount(self) -> None:
         async def wait_for_servers():
@@ -170,25 +161,24 @@ class DocumentsExplorerWidget(Static):
         self._selected_items = {}
 
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(60.0)
-            ) as client:
-                tasks = [
-                    client.request(
-                        "DELETE",
-                        f"{URL}/delete_document",
-                        json={"doc_path": p},
-                    )
-                    for p in values
-                ]
-                responses = await asyncio.gather(*tasks)
-                for doc_path, response in zip(values, responses):
-                    detail = response.json()["detail"]
-                    severity = "warning" if "not" in detail else "information"
-                    self.notify(
-                        f"Source: {doc_path}\nStatus: {detail}",
-                        severity=severity,
-                    )
+            tasks = [
+                self._async_requester.request(
+                    method="DELETE",
+                    url=f"{URL}/delete_document",
+                    stream=False,
+                    json={"doc_path": p},
+                )
+                for p in values
+            ]
+
+            responses = await asyncio.gather(*tasks)
+            for doc_path, response in zip(values, responses):
+                detail = response.json()["detail"]
+                severity = "warning" if "not" in detail else "information"
+                self.notify(
+                    f"Source: {doc_path}\nStatus: {detail}",
+                    severity=severity,
+                )
         except Exception as e:
             self.notify(f"Error: {str(e)}", severity="error")
 
@@ -207,20 +197,21 @@ class DocumentsExplorerWidget(Static):
         doc_path = doc_path.strip()
         is_added = False
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(60.0)
-            ) as client:
-                response = await client.post(
-                    f"{URL}/process_document", json={"doc_path": doc_path}
-                )
-                if response.is_success:
-                    is_added = True
-                    # avoid fetching the data
-                    document_id = response.json()["document_id"]
-                    self._documents[doc_path] = document_id
-                    self.notify(f"Added: {doc_path}")
-                else:
-                    self.notify(f"Could not add {doc_path}", severity="error")
+            response = await self._async_requester.request(
+                method="POST",
+                url=f"{URL}/process_document",
+                stream=False,
+                json={"doc_path": doc_path},
+            )
+            response.raise_for_status()
+            if response.is_success:
+                is_added = True
+                # avoid fetching the data
+                document_id = response.json()["document_id"]
+                self._documents[doc_path] = document_id
+                self.notify(f"Added: {doc_path}")
+            else:
+                self.notify(f"Could not add {doc_path}", severity="error")
         except Exception as e:
             self.notify(f"Error: {str(e)}", severity="error")
 
