@@ -1,10 +1,3 @@
-"""
-* ChromaDB
-* LocalStore
-* OllamaEmbedding
-* all relevant service .. as routers ?
-"""
-
 from pathlib import Path
 from fastapi import FastAPI, Request, Depends
 from pydantic import BaseModel
@@ -14,9 +7,18 @@ from langchain_ollama.llms import OllamaLLM
 from langchain_ollama import OllamaEmbeddings
 from docseer import retrievers
 from docseer import CACHE_FOLDER
+from docseer.retrievers import AsyncFlashrankRerank
 from docseer.databases import ChromaVectorDB, LocalFileStoreDB
 from docseer.agents.utils import docs_to_md
 from docseer.config import read_config, get_main_config
+
+
+def init_reranker(model=None, topk=5, score_threshold=0.0, **kwargs):
+    if model is None:
+        return None
+    return AsyncFlashrankRerank(
+        model=model, top_n=topk, score_threshold=score_threshold
+    )
 
 
 @asynccontextmanager
@@ -43,8 +45,13 @@ async def lifespan(app: FastAPI):
     base_retriever = retrievers.Retriever(
         vector_db=vector_db, docstore=docstore, topk=topk
     )
+    reranker = init_reranker(**config.get("reranker", dict()))
     app.state.retriever = retrievers.MultiStepsRetriever.init(
-        base_retriever=base_retriever, llm=small_llm_model
+        base_retriever=base_retriever,
+        llm=small_llm_model,
+        reranker=reranker,
+        use_extractor=False,
+        think_mode=False,
     )
     yield
 
