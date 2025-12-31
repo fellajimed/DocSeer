@@ -1,6 +1,10 @@
 llm_model:
   num_ctx: 4096
-  temperature: 0.7
+  temperature: 0.3
+
+small_llm_model:
+  model: "gemma3:4b-it-q4_K_M"
+  temperature: 1
 
 retriever:
   topk: 10

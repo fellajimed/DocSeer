@@ -1,3 +1,4 @@
+from typing import Callable, Optional
 from rich.panel import Panel
 from rich.align import Align
 from rich.markdown import Markdown
@@ -6,6 +7,7 @@ from textual.events import Key, MouseScrollUp, MouseScrollDown
 from textual.app import ComposeResult
 from textual.widgets import Static, TextArea
 from textual.containers import VerticalScroll, Vertical
+from textual.worker import Worker
 
 from utils import AsyncRequester
 
@@ -16,15 +18,22 @@ URL = "http://localhost:8000"
 class SubmitTextArea(TextArea):
     """A TextArea that triggers a custom Submitted message on Ctrl+j."""
 
+    is_worker_finished: Optional[Callable[[], bool]] = None
+
     async def _on_key(self, event: Key) -> None:
         if event.key in ("ctrl+j", "ctrl+m", "ctrl+enter"):
+            if self.is_worker_finished and not self.is_worker_finished():
+                event.prevent_default()
+                event.stop()
+                return
+
             event.prevent_default()
             event.stop()
             self.post_message(self.Submitted(self.text))
             self.text = ""
 
     class Submitted(TextArea.Changed):
-        """Custom message sent when Ctrl+Enter is pressed."""
+        """Custom message sent when Ctrl+j is pressed."""
 
         @property
         def value(self) -> str:
@@ -85,6 +94,7 @@ class ChatbotWidget(Static):
         self.is_stream = is_stream
         self.user_bubble = None
         self.bot_bubble = None
+        self.agent_worker: Worker | None = None
         self._async_requester = AsyncRequester()
 
     def compose(self) -> ComposeResult:
@@ -99,6 +109,9 @@ class ChatbotWidget(Static):
     async def on_mount(self) -> None:
         self.chat_log = self.query_one("#chat-log", ChatContainer)
         self.input = self.query_one("#input", SubmitTextArea)
+        self.input.is_worker_finished = lambda: (
+            self.agent_worker is None or self.agent_worker.is_finished
+        )
         self.input.focus()
 
     async def on_submit_text_area_submitted(
@@ -114,9 +127,9 @@ class ChatbotWidget(Static):
         self.call_after_refresh(self.chat_log.scroll_end)
 
         if self.is_stream:
-            self.run_worker(self.stream_agent(user_text))
+            self.agent_worker = self.run_worker(self.stream_agent(user_text))
         else:
-            self.run_worker(self.invoke_agent(user_text))
+            self.agent_worker = self.run_worker(self.invoke_agent(user_text))
 
     async def invoke_agent(self, prompt: str) -> None:
         self.bot_bubble = ChatMessage(content="", is_user=False)

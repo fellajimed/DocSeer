@@ -110,3 +110,9 @@ async def retrieve(
 ) -> str:
     context = await retriever.aretrieve(query)
     return docs_to_md(context)
+
+
+@app.post("/update_think_mode")
+def think_mode(request: Request, retriever=Depends(get_retriever)) -> dict:
+    retriever.think_mode = not retriever.think_mode
+    return {"think_mode": retriever.think_mode}

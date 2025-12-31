@@ -1,5 +1,5 @@
 from typing import Any
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
@@ -15,6 +15,7 @@ class MultiStepsRetriever(BaseRetriever):
     multi_query: MultiQueryRetriever | None = Field(None)
     summarizer_llm: Any = Field(None)
     max_summary_tokens: int = 2048
+    _think_mode: bool = PrivateAttr(default=False)
 
     class Config:
         arbitrary_types_allowed = True
@@ -28,6 +29,7 @@ class MultiStepsRetriever(BaseRetriever):
         use_extractor=False,
         summarizer_llm=None,
         max_summary_tokens=2048,
+        think_mode=False,
     ):
         if llm is not None:
             multi = MultiQueryRetriever.from_llm(
@@ -48,7 +50,16 @@ class MultiStepsRetriever(BaseRetriever):
             multi_query=multi,
             summarizer_llm=summarizer_llm,
             max_summary_tokens=max_summary_tokens,
+            _think_mode=(llm is not None) and think_mode,
         )
+
+    @property
+    def think_mode(self) -> bool:
+        return self._think_mode
+
+    @think_mode.setter
+    def think_mode(self, value: bool):
+        self._think_mode = (self.llm is not None) and value
 
     def populate(
         self,
@@ -79,7 +90,7 @@ class MultiStepsRetriever(BaseRetriever):
         return self._get_relevant_documents(text)
 
     def _get_relevant_documents(self, query: str) -> list[Document]:
-        if self.multi_query is not None:
+        if self._think_mode and self.multi_query is not None:
             docs = self.multi_query.invoke(query)
         else:
             docs = self.base_retriever.invoke(query)
@@ -99,7 +110,7 @@ class MultiStepsRetriever(BaseRetriever):
         return await self._aget_relevant_documents(text)
 
     async def _aget_relevant_documents(self, query: str) -> list[Document]:
-        if self.multi_query is not None:
+        if self._think_mode and self.multi_query is not None:
             docs = await self.multi_query.ainvoke(query)
         else:
             docs = await self.base_retriever.ainvoke(query)

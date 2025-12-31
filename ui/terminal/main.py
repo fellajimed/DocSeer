@@ -15,6 +15,8 @@ from documents_explorer import DocumentsExplorerWidget
 from honcho_servers import HonchoLogWidget
 from utils import AsyncRequester
 
+RETRIEVER_URL = "http://localhost:8003"
+
 
 class MainApp(App):
     CSS_PATH = [
@@ -44,6 +46,9 @@ class MainApp(App):
                 Tab("Logs", id="tab_logs"),
             )
             yield Button(
+                "Thinking Mode Disabled", id="btn_think", variant="success"
+            )
+            yield Button(
                 "Clear Chat History", id="btn_clear_chat", variant="warning"
             )
             yield Button(
@@ -62,21 +67,45 @@ class MainApp(App):
     def handle_tab_switch(self, event: Tabs.TabActivated) -> None:
         tab_id = event.tab.id
         self.query_one(ContentSwitcher).current = tab_id
-
-        if tab_id == "tab_chat":
-            self.query_one("#input").focus()
-        elif tab_id == "tab_files":
-            self.query_one("#doc_selector").focus()
+        self._set_focus()
 
     def _clear_chat(self) -> None:
         chat_window = self.query_one("#tab_chat", ChatbotWidget)
         chat_container = chat_window.query_one("#chat-log", VerticalScroll)
         chat_container.remove_children()
+        chat_window.user_bubble = None
+        chat_window.bot_bubble = None
+        self._set_focus()
 
-        if self.query_one(ContentSwitcher).current == "tab_chat":
+    def _set_focus(self):
+        chat_window = self.query_one("#tab_chat", ChatbotWidget)
+        tab_id = self.query_one(ContentSwitcher).current
+
+        if tab_id == "tab_chat":
             self.set_focus(chat_window.query_one("#input"))
+        elif tab_id == "tab_files":
+            self.set_focus(self.query_one("#doc_selector"))
         else:
             self.set_focus(None)
+
+    @on(Button.Pressed, "#btn_think")
+    async def set_think_mode(self, event: Button.Pressed) -> None:
+        self._set_focus()
+        try:
+            response = await self._async_requester.request(
+                method="POST",
+                url=f"{RETRIEVER_URL}/update_think_mode",
+                stream=False,
+            )
+            response.raise_for_status()
+            mode = response.json().get("think_mode")
+            status = "Enabled" if mode else "Disabled"
+            label = f"Thinking Mode {status}"
+            event.button.variant = "primary" if mode else "success"
+            event.button.label = label
+            self.notify(label)
+        except Exception as e:
+            self.notify(f"Error: {str(e)}", severity="error")
 
     @on(Button.Pressed, "#btn_clear_chat")
     def clear_chat(self) -> None:

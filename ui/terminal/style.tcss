@@ -27,13 +27,16 @@ MainApp #nav_bar Tab {
 
 MainApp #nav_bar Button {
     border: none;
-    margin-left: 3;
-    margin-right: 3;
+    margin-left: 2;
+    margin-right: 2;
     margin-bottom: 1;
     padding: 0;
-    width: 17;
-    min-width: 15;
+    width: auto;
+    min-width: 7;
+    max-width: 15;
     height: 2;
+    content-align: center middle;
+    text-align: center;
 }
 
 MainApp .title {
