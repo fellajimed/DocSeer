@@ -1,3 +1,4 @@
+import asyncio
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -90,22 +91,25 @@ class MainApp(App):
 
     @on(Button.Pressed, "#btn_think")
     async def set_think_mode(self, event: Button.Pressed) -> None:
+        async def wait_for_servers():
+            try:
+                response = await self._async_requester.request(
+                    method="POST",
+                    url=f"{RETRIEVER_URL}/update_think_mode",
+                    stream=False,
+                )
+                response.raise_for_status()
+                mode = response.json().get("think_mode")
+                status = "Enabled" if mode else "Disabled"
+                label = f"Thinking Mode {status}"
+                event.button.variant = "primary" if mode else "success"
+                event.button.label = label
+                self.notify(label)
+            except Exception as e:
+                self.notify(f"Error: {str(e)}", severity="error")
+
         self._set_focus()
-        try:
-            response = await self._async_requester.request(
-                method="POST",
-                url=f"{RETRIEVER_URL}/update_think_mode",
-                stream=False,
-            )
-            response.raise_for_status()
-            mode = response.json().get("think_mode")
-            status = "Enabled" if mode else "Disabled"
-            label = f"Thinking Mode {status}"
-            event.button.variant = "primary" if mode else "success"
-            event.button.label = label
-            self.notify(label)
-        except Exception as e:
-            self.notify(f"Error: {str(e)}", severity="error")
+        asyncio.create_task(wait_for_servers())
 
     @on(Button.Pressed, "#btn_clear_chat")
     def clear_chat(self) -> None:
