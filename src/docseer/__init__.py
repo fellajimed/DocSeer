@@ -1,8 +1,10 @@
-from platformdirs import user_cache_path
+# from platformdirs import user_cache_path
+from pathlib import Path
 from importlib.metadata import version, PackageNotFoundError
 
 
-CACHE_FOLDER = user_cache_path("docseer")
+# CACHE_FOLDER = user_cache_path("docseer")
+CACHE_FOLDER = Path(__file__).resolve().absolute().parents[2] / ".cache"
 CACHE_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
