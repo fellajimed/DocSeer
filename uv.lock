@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'darwin'",
@@ -894,6 +894,7 @@ dev = [
     { name = "fastapi" },
     { name = "honcho" },
     { name = "mypy" },
+    { name = "python-dotenv" },
     { name = "textual" },
 ]
 
@@ -922,6 +923,7 @@ dev = [
     { name = "fastapi", specifier = ">=0.124.2" },
     { name = "honcho", specifier = ">=2.0.0" },
     { name = "mypy", specifier = ">=1.15.0" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "textual", specifier = ">=6.10.0" },
 ]
 

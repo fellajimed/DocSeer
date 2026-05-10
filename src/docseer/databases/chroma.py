@@ -37,7 +37,7 @@ class ChromaVectorDB:
 
         self._init_path(path_db)
 
-        self.client = chromadb.PersistentClient(path=self.path_db)
+        self.client = chromadb.HttpClient(host="localhost", port=8010)
         self.collection = self.client.get_or_create_collection(
             name="vector_db"
         )
