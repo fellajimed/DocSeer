@@ -1,13 +1,15 @@
 import asyncio
+import logging
+
 from .utils import get_file_bytes
 from .content_extractor import ContentExtractor
 from .metadata_extractor import MetadataExtractor
 
+logger = logging.getLogger(__name__)
+
 
 class DocConverter:
-    """
-    PDF to Markdown Converter + metadata
-    """
+    """PDF → Markdown + metadata (GROBID for metadata, Docling for content)."""
 
     def __init__(self, url: str | None = None):
         self._content_extractor = ContentExtractor()
@@ -16,36 +18,33 @@ class DocConverter:
     def convert(self, doc_path: str) -> dict:
         doc_bytes = get_file_bytes(doc_path)
 
-        metadata = self._metadata_extractor(doc_bytes=doc_bytes)
+        try:
+            metadata = self._metadata_extractor(doc_bytes=doc_bytes)
+        except Exception as exc:
+            logger.warning("GROBID metadata extraction failed: %s", exc)
+            metadata = {}
+
         content = self._content_extractor(
             doc_path=doc_path, doc_bytes=doc_bytes
         )
-
         return metadata | content
 
     async def aconvert(self, doc_path: str) -> dict:
         doc_bytes = await asyncio.to_thread(get_file_bytes, doc_path)
 
-        metadata_task = asyncio.to_thread(
-            self._metadata_extractor, doc_bytes=doc_bytes
-        )
-        content_task = asyncio.to_thread(
-            self._content_extractor, doc_path=doc_path, doc_bytes=doc_bytes
-        )
+        async def _safe_metadata() -> dict:
+            try:
+                return await asyncio.to_thread(
+                    self._metadata_extractor, doc_bytes=doc_bytes
+                )
+            except Exception as exc:
+                logger.warning("GROBID metadata extraction failed: %s", exc)
+                return {}
 
-        metadata, content = await asyncio.gather(metadata_task, content_task)
-
+        metadata, content = await asyncio.gather(
+            _safe_metadata(),
+            asyncio.to_thread(
+                self._content_extractor, doc_path=doc_path, doc_bytes=doc_bytes
+            ),
+        )
         return metadata | content
-
-
-if __name__ == "__main__":
-    doc_converter = DocConverter()
-
-    print(doc_converter("https://arxiv.org/pdf/2407.01985"))
-    print("-" * 150)
-    print(
-        doc_converter.convert(
-            "/Users/mohammed/Zotero/storage/4MRHHSWG/He_et_al._"
-            "-_2015_-_Deep_Residual_Learning_for_Image_Recognition.pdf"
-        )
-    )

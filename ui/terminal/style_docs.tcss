@@ -10,94 +10,112 @@ DocumentsExplorerWidget #main_container {
     padding-bottom: 1;
 }
 
-DocumentsExplorerWidget Horizontal {
-    height: 1fr;
+/* Only the top-level selectionlist/sidebar splitter should be 1fr tall */
+DocumentsExplorerWidget #main_container > Horizontal {
+    height: 1fr;
 }
 
 DocumentsExplorerWidget #selectionlist {
-    width: 60%;
-    height: 100%;
+    width: 60%;
+    height: 100%;
 }
 
 DocumentsExplorerWidget #search_input {
     margin-bottom: 1;
-    border: tall $primary;
+    border: tall $primary;
 }
 
 DocumentsExplorerWidget #doc_selector {
     height: 1fr;
-    border: tall $primary;
+    border: tall $primary;
 }
 
 DocumentsExplorerWidget #sidebar {
-    width: 40%;
-    height: 100%;
-}
-
-DocumentsExplorerWidget ContentSwitcher {
-    width: 100%;
-    height: 100%;
-    align: center middle;
-}
-
-DocumentsExplorerWidget #confirm_state {
-    width: 100%;
-    height: 100%;
-    align: center middle;
+    width: 40%;
+    height: 100%;
 }
 
 DocumentsExplorerWidget #selected_view {
-    width: 100%;
-    height: 70%;
-    border: tall $secondary;
-    background: $surface;
-    padding: 1 2;
-    overflow-y: scroll;
+    width: 100%;
+    height: 70%;
+    border: tall $secondary;
+    background: $surface;
+    padding: 1 2;
+    overflow-y: scroll;
     margin-bottom: 1;
     text-wrap: nowrap;
 }
 
 DocumentsExplorerWidget #action_area {
-    height: 30%;
-    border: tall $warning;
-    align: center middle;
-    padding: 0 1;
-    text-align: center;
-}
-
-DocumentsExplorerWidget #confirm_msg {
-    width: 100%;
-    text-align: center;
-    margin-bottom: 1;
-    align: center middle;
+    height: 30%;
+    border: tall $warning;
+    align: center middle;
+    padding: 0 1;
     text-align: center;
 }
 
-DocumentsExplorerWidget #button_row {
+DocumentsExplorerWidget ContentSwitcher {
     width: 100%;
-    height: auto;
-    align: center middle;
+    height: 100%;
+    align: center middle;
 }
 
-DocumentsExplorerWidget #button_row Button {
+/* ── launch state: Delete + Re-ingest side by side ───────────────────────── */
+
+DocumentsExplorerWidget #launch_state {
+    width: 100%;
     height: 3;
-    width: 12;
-    min-width: 0;
-    margin: 0 6;
-    content-align: center middle; 
+    align: center middle;
+}
+
+DocumentsExplorerWidget #launch_state Button {
+    height: 3;
+    width: 1fr;
+    margin: 0 4;
+}
+
+/* ── confirmation states ─────────────────────────────────────────────────── */
+
+DocumentsExplorerWidget #confirm_delete_state,
+DocumentsExplorerWidget #confirm_reingest_state {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
+DocumentsExplorerWidget #confirm_delete_msg,
+DocumentsExplorerWidget #confirm_reingest_msg {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+DocumentsExplorerWidget #button_row_delete,
+DocumentsExplorerWidget #button_row_reingest {
+    width: 100%;
+    height: 3;
+    align: center middle;
+}
+
+DocumentsExplorerWidget #button_row_delete Button,
+DocumentsExplorerWidget #button_row_reingest Button {
+    height: 3;
+    width: 1fr;
+    min-width: 0;
+    margin: 0 4;
+    content-align: center middle;
     text-align: center;
     padding: 0;
     border: none;
 }
 
-DocumentsExplorerWidget #button_row Button > .textual--button-label {
+DocumentsExplorerWidget #button_row_delete Button > .textual--button-label,
+DocumentsExplorerWidget #button_row_reingest Button > .textual--button-label {
     width: 100%;
     text-align: center;
 }
 
-DocumentsExplorerWidget #launch_state {
-    width: 80%;
-}
+/* ── add-paper bar ───────────────────────────────────────────────────────── */
 
 DocumentsExplorerWidget #input_bar {
     dock: bottom;
@@ -108,7 +126,7 @@ DocumentsExplorerWidget #input_bar {
     background: $panel;
     width: 100%;
     margin: 1 0 0 0;
-    layout: horizontal; 
+    layout: horizontal;
 }
 
 DocumentsExplorerWidget #input_bar Input {

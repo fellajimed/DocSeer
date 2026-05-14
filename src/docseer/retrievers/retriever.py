@@ -1,17 +1,20 @@
 import asyncio
 from typing import Any, Optional
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForRetrieverRun,
+    CallbackManagerForRetrieverRun,
+)
 
 
 class Retriever(BaseRetriever):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     vector_db: Any = Field(...)
     docstore: Optional[Any] = Field(None)
     topk: int = 5
-
-    class Config:
-        arbitrary_types_allowed = True
 
     def populate(
         self,
@@ -53,10 +56,15 @@ class Retriever(BaseRetriever):
             self.docstore.delete(document_id)
 
     def retrieve(self, text: str) -> list[Document]:
-        return self._get_relevant_documents(text)
+        return self.invoke(text)
 
-    def _get_relevant_documents(self, text: str):
-        chunks: list[Document] = self.vector_db.query(text, self.topk)
+    def _get_relevant_documents(
+        self,
+        query: str,
+        *,
+        run_manager: CallbackManagerForRetrieverRun,
+    ) -> list[Document]:
+        chunks: list[Document] = self.vector_db.query(query, self.topk)
         if self.docstore is not None and not self.docstore.is_empty:
             # get unique parent_id
             parent_ids = [
@@ -77,10 +85,15 @@ class Retriever(BaseRetriever):
         return chunks
 
     async def aretrieve(self, text: str) -> list[Document]:
-        return await self._aget_relevant_documents(text)
+        return await self.ainvoke(text)
 
-    async def _aget_relevant_documents(self, text: str):
-        chunks: list[Document] = await self.vector_db.aquery(text, self.topk)
+    async def _aget_relevant_documents(
+        self,
+        query: str,
+        *,
+        run_manager: AsyncCallbackManagerForRetrieverRun,
+    ) -> list[Document]:
+        chunks: list[Document] = await self.vector_db.aquery(query, self.topk)
         if self.docstore is not None and not self.docstore.is_empty:
             parent_ids = [
                 p_id

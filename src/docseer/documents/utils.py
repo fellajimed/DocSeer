@@ -51,7 +51,7 @@ def get_sitemap_urls(sitemap_url: str) -> list[str]:
             else root.findall(".//loc")
         )
 
-        return [elem.text for elem in it]
+        return [elem.text for elem in it if elem.text is not None]
 
     except requests.RequestException as e:
         raise ValueError(f"Failed to fetch sitemap: {str(e)}")

@@ -175,7 +175,7 @@ def parse_args():
     parser = argparse.ArgumentParser("DocSeer")
 
     parser.add_argument("-s", "--source", type=str, nargs="*", default=[])
-    parser.add_argument("--config", type=dict, default=None)
+    parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--n-workers", type=int, default=None)
     parser.add_argument("--keep-db", action="store_true")
     parser.add_argument("--sync", action="store_true")

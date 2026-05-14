@@ -1,29 +1,249 @@
+name: docseer
+
+# All containers are named docseer-<service> so DockerLogsWidget can find them.
+
+x-api-env: &api-env
+  DOCSEER_POSTGRES_URL: postgresql+asyncpg://docseer:docseer@postgres:5432/docseer
+  DOCSEER_POSTGRES_SYNC_URL: postgresql+psycopg2://docseer:docseer@postgres:5432/docseer
+  DOCSEER_REDIS_URL: redis://redis:6379/0
+  DOCSEER_CHROMA_HOST: chromadb
+  DOCSEER_CHROMA_PORT: 8000
+  DOCSEER_OLLAMA_BASE_URL: http://ollama:11434
+  DOCSEER_GROBID_URL: http://grobid:8070
+  DOCSEER_ZOTERO_URL: http://zotero:1969
+  DOCSEER_DOCSTORE_PATH: /data/docstore
+  DOCSEER_LLM_MODEL: ${DOCSEER_LLM_MODEL:-qwen3.5:4b}
+  DOCSEER_EMBEDDING_MODEL: ${DOCSEER_EMBEDDING_MODEL:-nomic-embed-text}
+  # model-puller handles pulling in Docker; disable the in-process fallback
+  # so the API doesn't block on downloads it doesn't need to do.
+  DOCSEER_OLLAMA_PULL_ON_STARTUP: "false"
+  DOCSEER_RETRIEVER_TOPK: ${DOCSEER_RETRIEVER_TOPK:-5}
+
 services:
-  rag-chatbot:
-    build:
-      context: ./docker/chatbot
-    container_name: chatbot
-    ports:
-      - "8000:8000"
+
+  # ── infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: docseer-postgres
     environment:
-      - OLLAMA_HOST=http://ollama:11434
-    depends_on:
-      - ollama
+      POSTGRES_USER: docseer
+      POSTGRES_PASSWORD: docseer
+      POSTGRES_DB: docseer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docseer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: docseer-redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: docseer-chromadb
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   ollama:
-    build:
-      context: ./docker/ollama
-    container_name: ollama
-    ports:
-      - "11434:11434"
+    image: ollama/ollama:0.23.2
+    container_name: docseer-ollama
     volumes:
       - ollama_data:/root/.ollama
+    # Port 11434 is intentionally not exposed to the host — all internal traffic
+    # uses Docker DNS (http://ollama:11434).  Exposing it would conflict with a
+    # native Ollama install on the host.  To inspect models manually, use:
+    #   docker compose exec ollama ollama list
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+
+  # ── model bootstrap ────────────────────────────────────────────────────────
+  # Runs once after the Ollama server is healthy.  Pulls the LLM and embedding
+  # models into the shared ollama_data volume if they are not already present.
+  # Because ollama pull is idempotent, subsequent restarts are instant (the
+  # server just confirms the model is up-to-date and exits).
+  # api and worker wait for this service to complete before starting.
+
+  model-puller:
+    image: ollama/ollama:0.23.2
+    container_name: docseer-model-puller
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /bin/ollama pull $${DOCSEER_LLM_MODEL:-llama3.2:3b} &&
+        /bin/ollama pull $${DOCSEER_EMBEDDING_MODEL:-nomic-embed-text}
+    environment:
+      # Point the CLI at the running server so pulls land in the shared volume
+      OLLAMA_HOST: http://ollama:11434
+      DOCSEER_LLM_MODEL: ${DOCSEER_LLM_MODEL:-llama3.2:3b}
+      DOCSEER_EMBEDDING_MODEL: ${DOCSEER_EMBEDDING_MODEL:-nomic-embed-text}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  grobid:
+    image: lfoppiano/grobid:0.8.1
+    container_name: docseer-grobid
+    platform: linux/amd64
+    ports:
+      - "8070:8070"
+      - "8071:8071"
+    restart: unless-stopped
+
+  zotero:
+    image: zotero/translation-server:latest
+    container_name: docseer-zotero
+    ports:
+      - "1969:1969"
+    restart: unless-stopped
+
+  # ── application ────────────────────────────────────────────────────────────
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: docseer-api
+    environment:
+      <<: *api-env
+    volumes:
+      - docstore_data:/data/docstore
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      model-puller:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health"]
+      start_period: 30s
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: docseer-worker
+    command:
+      - uv
+      - run
+      - celery
+      - -A
+      - backend.app.celery_app.celery_app
+      - worker
+      - --loglevel=info
+      - --queues=ingest
+      - --concurrency=2
+      - --pool=prefork
+    environment:
+      <<: *api-env
+    volumes:
+      - docstore_data:/data/docstore
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      model-puller:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: docseer-flower
+    command:
+      - uv
+      - run
+      - celery
+      - -A
+      - backend.app.celery_app.celery_app
+      - flower
+      - --port=5555
+      - --broker=${DOCSEER_REDIS_URL:-redis://redis:6379/0}
+      - --broker_api=${DOCSEER_REDIS_URL:-redis://redis:6379/0}
+      - --loglevel=info
+    environment:
+      <<: *api-env
+      # Basic auth: set FLOWER_USER / FLOWER_PASSWORD in your .env to protect
+      # the dashboard.  Leave blank to disable auth (fine for local use).
+      FLOWER_BASIC_AUTH: ${FLOWER_USER:-}:${FLOWER_PASSWORD:-}
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5555/healthcheck"]
+      start_period: 15s
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # ── TUI (run-once via `docker compose run --rm tui`) ─────────────────────
+
+  tui:
+    build:
+      context: .
+      dockerfile: docker/tui/Dockerfile
+    container_name: docseer-tui
+    environment:
+      DOCSEER_API_URL: http://api:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    tty: true
+    stdin_open: true
+    profiles:
+      - tui   # not started by `docker compose up`; use `docker compose run --rm tui`
 
 volumes:
+  postgres_data:
+  redis_data:
+  chroma_data:
+  docstore_data:
+
+  # ollama_data: bind-mounts ~/.ollama so that any models already installed
+  # on the host are instantly available inside the container — no re-download.
+  # On a fresh machine (no ~/.ollama) the directory is created automatically
+  # by `make up` and model-puller fills it on first boot.
   ollama_data:
     driver: local
     driver_opts:

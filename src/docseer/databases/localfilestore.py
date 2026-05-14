@@ -34,4 +34,8 @@ class LocalFileStoreDB:
 
     # TODO: maybe rename this method
     def get(self, ids: list[str]) -> list[str]:
-        return [content.decode("utf-8") for content in self.docstore.mget(ids)]
+        return [
+            content.decode("utf-8")
+            for content in self.docstore.mget(ids)
+            if content is not None
+        ]

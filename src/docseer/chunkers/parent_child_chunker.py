@@ -1,9 +1,17 @@
 import asyncio
+from typing import TypedDict
+
 from langchain_core.documents import Document
 from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter,
 )
+
+
+class ChunkResult(TypedDict):
+    parent_ids: list[str]
+    parent_chunks: list[Document]
+    chunks: list[Document]
 
 
 class ParentChildChunker:
@@ -14,7 +22,7 @@ class ParentChildChunker:
         child_chunk_overlap: int = 50,
     ):
         if parent_headers_to_split_on is None:
-            self.parent_headers_to_split_on = [
+            self.parent_headers_to_split_on: list[tuple[str, str]] = [
                 ("#" * i, "Header") for i in range(1, 5)
             ]
         else:
@@ -30,9 +38,7 @@ class ParentChildChunker:
             chunk_overlap=child_chunk_overlap,
         )
 
-    def chunk(
-        self, document_content: str, document_id: str
-    ) -> dict[str, list[str | Document] | None]:
+    def chunk(self, document_content: str, document_id: str) -> ChunkResult:
         parent_chunks = self.parent_splitter.split_text(document_content)
         parent_ids = []
         child_chunks = []
@@ -66,7 +72,7 @@ class ParentChildChunker:
 
     async def achunk(
         self, document_content: str, document_id: str
-    ) -> dict[str, list[str | Document] | None]:
+    ) -> ChunkResult:
         return await asyncio.to_thread(
             self.chunk, document_content, document_id
         )

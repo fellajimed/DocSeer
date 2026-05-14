@@ -1,148 +1,260 @@
-# 📄 DocSeer
+# DocSeer
 
-[![PyPI version](https://badge.fury.io/py/docseer.svg)](https://badge.fury.io/py/docseer)
+**DocSeer** is a self-hosted RAG (Retrieval-Augmented Generation) application for research papers. Ingest PDFs, query them in natural language, and explore your library — all running locally via Docker, with no data leaving your machine.
 
-**DocSeer** is an intelligent PDF analysis tool that allows you to **summarize** documents and **ask questions** about their contents using natural language. It leverages modern language models to provide fast, accurate insights from complex files — no more endless scrolling or manual skimming.
+> **Seer**: One who perceives hidden knowledge — interpreting and revealing insights beyond the surface.
 
-> **Seer**: One who perceives hidden knowledge—interpreting and revealing insights beyond the surface.
----
-
-## ✨ Features
-
-* 🔍 Summarize entire PDFs
-* 💬 Ask questions and get accurate answers based on document content
-* 🧠 Powered by state-of-the-art AI models
-* 📎 Simple, scriptable API or CLI use
+![version](https://img.shields.io/badge/version-0.4.0-blue)
 
 ---
 
-## ⚙️ Default Behavior
+## Architecture
 
-By default, **DocSeer** relies on [**Ollama**](https://ollama.com/) and **local language models** for processing.  
-Make sure **Ollama** is installed and any required models are available locally to ensure full functionality.
+| Layer | Technology |
+|---|---|
+| API | FastAPI (async, SSE streaming) |
+| Task queue | Celery + Redis |
+| Vector store | ChromaDB |
+| Document store | Local file store (parent chunks) |
+| Relational DB | PostgreSQL |
+| LLM / embeddings | Ollama (fully local) |
+| PDF processing | Docling (content) + GROBID (metadata) |
+| Metadata import | Zotero Translation Server + BibTeX parser |
+| TUI | Textual |
+| Monitoring | Flower (Celery dashboard) |
 
+All services run as Docker containers. The only external network call is the initial Ollama model pull, which happens automatically at startup.
 
-### 🧠 Models Used
+---
 
-DocSeer uses the following models via Ollama:
+## Prerequisites
 
-- [`mxbai-embed-large`](https://ollama.com/library/mxbai-embed-large) — for high-quality embedding and semantic search  
-- [`gemma3:4b`](https://ollama.com/library/gemma3:4b) — for natural language understanding and generation (QA & summarization)
+- [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (`docker compose version`)
+- ~10 GB free disk space (models + database volumes)
 
-To get started, run:
+That's it. No Python, Ollama, or Postgres installation needed on the host — unless you want to use native Ollama for GPU acceleration (see below).
+
+---
+
+## Quick start
 
 ```bash
-ollama pull mxbai-embed-large
-ollama pull gemma3:4b
+# 1. Clone the repo
+git clone https://github.com/fellajimed/docseer.git
+cd docseer
+
+# 2. Create your .env (safe to use defaults for local dev)
+make .env        # copies .env.example → .env
+
+# 3. Build, start everything, and open the TUI — all in one shot
+make run
 ```
 
-> NB: These models can be modifed in `src/docseer/__init__.py`
+`make run` does the full sequence:
+1. Builds the API and worker images
+2. Starts all 9 backend services (Postgres, Redis, ChromaDB, Ollama, GROBID, Zotero, API, worker, Flower) and waits for every healthcheck to pass
+3. Pulls the configured LLM and embedding models from Ollama if not already present (first boot may take a few minutes)
+4. Launches the Textual TUI — chat, manage documents, and tail live container logs
 
----
-
-## 🚀 Installation
-
-### 📦 Install via pip
-
-To install the latest released version of `docseer` from PyPI:
+To start only the backend without the TUI:
 
 ```bash
-pip install docseer
-````
-
-This method is recommended if you simply want to use `docseer` as a library or CLI tool without modifying the source code.
+make up
+```
 
 ---
 
-### 🔧 Local Development Installation
+## Running with `make`
 
-To install `docseer` locally for development:
+DocSeer has two operating modes depending on how Ollama is run. Choose the one that fits your setup.
 
-1. Clone the repository:
+### Mode 1 — Fully Dockerized (default)
 
-   ```bash
-   git clone https://github.com/fellajimed/docseer.git
-   cd docseer
-   ```
-
-2. Install dependencies using [uv](https://docs.astral.sh/uv/):
-
-   ```bash
-   uv sync
-   ```
-
-This method is ideal for contributing to the project or running `docseer` from source.
-
----
-
-> 💡 **Note:** Make sure you have [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. You can install it with:
->
-> ```bash
-> pip install uv
-> ```
----
-
-## 🛠 CLI tool
+Ollama runs as a Docker container. Works on any OS, no extra setup needed. Inference is CPU-only.
 
 ```bash
-docseer --help
+make up          # build + start all backend services, wait until healthy
+make run         # same as above, then launch the TUI
+make down        # stop and remove containers (volumes are kept)
 ```
 
-```
-usage: DocSeer [-h] [-s [SOURCE ...]] [--n-workers N_WORKERS] [--keep-db] [--sync] [--index] [--show-logs] [--version]
+### Mode 2 — Native macOS Ollama (recommended on Apple Silicon)
 
-options:
-  -h, --help            show this help message and exit
-  -s [SOURCE ...], --source [SOURCE ...]
-  --n-workers N_WORKERS
-  --keep-db
-  --sync
-  --index
-  --show-logs
-  --versio
-```
+Ollama runs on the host using Apple Metal (GPU), giving 10–50× faster inference than the Docker variant. The rest of the stack (Postgres, Redis, ChromaDB, etc.) still runs in Docker.
 
-### 📥 Supported Input Formats
-DocSeer accepts any of the following in the `-s` flag:
-
-* Local PDF file path
-* Direct URL to a PDF file (`-u`, `--url`)
-
----
-
-## 📚 Example Use Cases
-
-* Academic paper summarization
-
----
-
-## Run the application as a backend
-
-
-All the services are in the `Procfile` file.
+**One-time setup:**
 
 ```bash
-honcho start
+# 1. Install and start Ollama — must bind to 0.0.0.0 so Docker containers
+#    can reach it via host.docker.internal:11434
+brew install ollama
+OLLAMA_HOST=0.0.0.0 ollama serve
+
+# 2. Pull the required models into the native Ollama
+make pull-models-native
+```
+
+**Day-to-day usage:**
+
+```bash
+make up-native   # start backend services (skips the Docker Ollama container)
+make run-native  # same as above, then launch the TUI
+```
+
+> If Ollama.app is already running, make sure it is configured to listen on
+> `0.0.0.0`. You can set `OLLAMA_HOST=0.0.0.0` in your shell or in the
+> Ollama.app environment before launching it.
+
+---
+
+## Service URLs
+
+| Service | URL |
+|---|---|
+| REST API | http://localhost:8000 |
+| API docs (Swagger) | http://localhost:8000/docs |
+| Flower (Celery monitor) | http://localhost:5555 |
+| Ollama | http://localhost:11434 |
+| GROBID | http://localhost:8070 |
+
+---
+
+## Configuration
+
+All settings are environment variables prefixed with `DOCSEER_`. Copy `.env.example` to `.env` and adjust as needed.
+
+```bash
+cp .env.example .env
+```
+
+### Key settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `DOCSEER_LLM_MODEL` | `qwen3.5:4b` | Ollama model used for chat |
+| `DOCSEER_EMBEDDING_MODEL` | `nomic-embed-text` | Ollama model used for embeddings |
+| `DOCSEER_OLLAMA_PULL_ON_STARTUP` | `true` | Pull models at startup if not present locally |
+| `DOCSEER_RETRIEVER_TOPK` | `5` | Number of chunks retrieved per query |
+| `DOCSEER_RERANKER_MODEL` | `ms-marco-MultiBERT-L-12` | FlashRank reranker model |
+| `DOCSEER_CHAT_NUM_CTX` | `20000` | KV-cache context window (tokens) |
+| `DOCSEER_CHAT_NUM_PREDICT` | `4096` | Max tokens per response |
+
+To use a different LLM:
+
+```bash
+# in your .env
+DOCSEER_LLM_MODEL=llama3.2
+```
+
+> **Important:** do not mix embedding models across an existing database.
+> `nomic-embed-text` produces 768-dimensional vectors. Switching models
+> requires wiping and re-ingesting all papers (`make clean-db`).
+
+Set `DOCSEER_OLLAMA_PULL_ON_STARTUP=false` if you pre-pull models yourself or work in an air-gapped environment.
+
+---
+
+## All `make` commands
+
+### Backend
+
+| Command | Description |
+|---|---|
+| `make up` | Build + start all backend services (Dockerized Ollama), wait until healthy |
+| `make up-native` | Same, but skips Docker Ollama — uses native host Ollama instead |
+| `make down` | Stop and remove containers (volumes are kept) |
+| `make clean` | Full teardown including all volumes — **destructive** |
+| `make clean-db` | Wipe paper data (Postgres + ChromaDB + docstore) while keeping Ollama models |
+| `make logs` | Tail logs for all backend services |
+| `make status` | Show container status (`docker compose ps`) |
+| `make build` | Build images without starting |
+
+### TUI
+
+| Command | Description |
+|---|---|
+| `make run` | Start backend (Dockerized Ollama) then launch the TUI |
+| `make run-native` | Start backend (native Ollama) then launch the TUI |
+
+### Models
+
+| Command | Description |
+|---|---|
+| `make pull-models` | Pull LLM + embedding models into the Docker Ollama container |
+| `make pull-models-native` | Pull LLM + embedding models into the native host Ollama |
+
+### Development
+
+| Command | Description |
+|---|---|
+| `make migrate` | Apply Alembic migrations to HEAD |
+| `make shell` | Open a bash shell inside the API container |
+| `make test` | Run the pytest suite inside the API container |
+
+---
+
+## REST API overview
+
+The full interactive documentation is available at **http://localhost:8000/docs** once the stack is running.
+
+### Papers
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/papers/` | List all papers |
+| `POST` | `/papers/` | Add a paper and queue ingestion |
+| `GET` | `/papers/{id}` | Get a paper by ID |
+| `PUT` | `/papers/{id}` | Update paper metadata |
+| `DELETE` | `/papers/{id}` | Delete paper and its embeddings |
+| `POST` | `/papers/import-bibtex` | Import papers from a BibTeX string |
+| `POST` | `/papers/import-url` | Import metadata via Zotero Translation Server |
+| `POST` | `/papers/{id}/ingest` | (Re-)trigger PDF ingestion |
+
+### Chat
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/chat/stream` | SSE stream — yields `thinking`, `response`, `done`, `error` events |
+| `POST` | `/chat/invoke` | Blocking single-turn response |
+| `GET` | `/chat/history` | Return conversation history |
+| `DELETE` | `/chat/history` | Clear conversation history |
+
+### Tasks
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/tasks/{task_id}` | Poll a Celery task (PENDING / STARTED / SUCCESS / FAILURE) |
+
+---
+
+## Ingestion pipeline
+
+1. A paper is created via `POST /papers/` (with `source_path`) or `POST /papers/import-url`.
+2. Celery picks up the `ingest` task on the `ingest` queue.
+3. The worker converts the PDF to Markdown using **Docling**, extracts metadata via **GROBID**, chunks the content with a parent-child chunker, and stores vectors in **ChromaDB** + parent chunks in the local docstore.
+4. Ingestion is **idempotent** — re-ingesting a paper first purges its existing vectors and chunks before rebuilding them.
+5. Poll `GET /tasks/{task_id}` or watch Flower at http://localhost:5555 to track progress.
+
+---
+
+## Development
+
+```bash
+# Install all dependencies (including dev) locally with uv
+uv sync
+
+# Run tests
+uv run pytest tests/ -v
+
+# Run the API locally (requires running infra services)
+uv run uvicorn backend.app.main:app --reload
+
+# Run a Celery worker locally
+uv run celery -A backend.app.celery_app.celery_app worker --loglevel=info --queues=ingest
 ```
 
 ---
 
-# 🐳 Running the Project with Docker
-
-Building and starting the services:
-```bash
-docker compose up --build
-```
-
-Running a one-time interactive command in a service container: 
-```bash
-docker compose run --rm -ti rag-chatbot -s https://arxiv.org/pdf/2407.12211 --top-k 5 -I
-```
-
-> NOTE: as for now, it uses models that are stored locally
-
----
-
-## 🧾 License
+## License
 
 MIT License

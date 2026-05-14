@@ -24,11 +24,8 @@ class DoclingChunker:
         for i, chunk in enumerate(self.chunker.chunk(dl_doc=dl_doc)):
             # chunk.text
             chunk_text = self.chunker.contextualize(chunk=chunk)
-            header = (
-                chunk.meta.headings[-1]
-                if hasattr(chunk.meta, "headings") and len(chunk.meta.headings)
-                else "Unknown Heading"
-            )
+            headings = getattr(chunk.meta, "headings", None)
+            header = headings[-1] if headings else "Unknown Heading"
             chunks.append(
                 Document(
                     page_content=chunk_text,

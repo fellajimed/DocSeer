@@ -81,7 +81,7 @@ class Documents:
 
 
 if __name__ == "__main__":
-    values = [
+    values: list[str | os.PathLike[str]] = [
         "https://arxiv.org/pdf/2407.01985",
         "https://arxiv.org/pdf/2407.12211",
         "https://arxiv.org/pdf/2407.12211",
@@ -89,5 +89,5 @@ if __name__ == "__main__":
 
     docs = Documents(values)
 
-    docs.add_source(values[0])
+    docs.add_source(str(values[0]))
     docs.add_source("https://arxiv.org/pdf/2407.12215")

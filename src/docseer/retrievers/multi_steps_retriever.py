@@ -1,14 +1,21 @@
 from typing import Any
-from pydantic import Field, PrivateAttr
+from pydantic import ConfigDict, Field, PrivateAttr
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForRetrieverRun,
+    CallbackManagerForRetrieverRun,
+)
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 from langchain_classic.retrievers.document_compressors import LLMChainExtractor
 from .async_flashrankrerank import AsyncFlashrankRerank
+from .retriever import Retriever
 
 
 class MultiStepsRetriever(BaseRetriever):
-    base_retriever: BaseRetriever = Field(...)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    base_retriever: Retriever = Field(...)
     llm: Any = Field(None)
     reranker: AsyncFlashrankRerank | None = Field(None)
     extractor: LLMChainExtractor | None = Field(None)
@@ -17,20 +24,17 @@ class MultiStepsRetriever(BaseRetriever):
     max_summary_tokens: int = 2048
     _think_mode: bool = PrivateAttr(default=False)
 
-    class Config:
-        arbitrary_types_allowed = True
-
     @classmethod
     def init(
         cls,
-        base_retriever: BaseRetriever,
+        base_retriever: Retriever,
         llm=None,
         reranker=None,
         use_extractor=False,
         summarizer_llm=None,
         max_summary_tokens=2048,
         think_mode=False,
-    ):
+    ) -> "MultiStepsRetriever":
         if llm is not None:
             multi = MultiQueryRetriever.from_llm(
                 retriever=base_retriever, llm=llm
@@ -42,7 +46,7 @@ class MultiStepsRetriever(BaseRetriever):
             multi = None
             extractor = None
 
-        return cls(
+        obj = cls(
             base_retriever=base_retriever,
             llm=llm,
             reranker=reranker,
@@ -50,8 +54,9 @@ class MultiStepsRetriever(BaseRetriever):
             multi_query=multi,
             summarizer_llm=summarizer_llm,
             max_summary_tokens=max_summary_tokens,
-            _think_mode=(llm is not None) and think_mode,
         )
+        obj._think_mode = (llm is not None) and think_mode
+        return obj
 
     @property
     def think_mode(self) -> bool:
@@ -83,23 +88,28 @@ class MultiStepsRetriever(BaseRetriever):
             chunks, metadata, parent_ids, parent_chunks
         )
 
-    def delete_document(self, document_id: str):
+    def delete_document(self, document_id: str) -> None:
         self.base_retriever.delete_document(document_id)
 
     def retrieve(self, text: str) -> list[Document]:
-        return self._get_relevant_documents(text)
+        return self.invoke(text)
 
-    def _get_relevant_documents(self, query: str) -> list[Document]:
+    def _get_relevant_documents(
+        self,
+        query: str,
+        *,
+        run_manager: CallbackManagerForRetrieverRun,
+    ) -> list[Document]:
         if self._think_mode and self.multi_query is not None:
-            docs = self.multi_query.invoke(query)
+            docs = list(self.multi_query.invoke(query))
         else:
-            docs = self.base_retriever.invoke(query)
+            docs = list(self.base_retriever.invoke(query))
 
         if self.extractor is not None:
-            docs = self.extractor.compress_documents(docs, query=query)
+            docs = list(self.extractor.compress_documents(docs, query=query))
 
         if self.reranker is not None:
-            docs = self.reranker.compress_documents(docs, query=query)
+            docs = list(self.reranker.compress_documents(docs, query=query))
 
         if self.summarizer_llm:
             docs = self._summarize_if_needed(docs)
@@ -107,19 +117,28 @@ class MultiStepsRetriever(BaseRetriever):
         return docs
 
     async def aretrieve(self, text: str) -> list[Document]:
-        return await self._aget_relevant_documents(text)
+        return await self.ainvoke(text)
 
-    async def _aget_relevant_documents(self, query: str) -> list[Document]:
+    async def _aget_relevant_documents(
+        self,
+        query: str,
+        *,
+        run_manager: AsyncCallbackManagerForRetrieverRun,
+    ) -> list[Document]:
         if self._think_mode and self.multi_query is not None:
-            docs = await self.multi_query.ainvoke(query)
+            docs = list(await self.multi_query.ainvoke(query))
         else:
-            docs = await self.base_retriever.ainvoke(query)
+            docs = list(await self.base_retriever.ainvoke(query))
 
         if self.extractor is not None:
-            docs = await self.extractor.acompress_documents(docs, query=query)
+            docs = list(
+                await self.extractor.acompress_documents(docs, query=query)
+            )
 
         if self.reranker is not None:
-            docs = await self.reranker.acompress_documents(docs, query=query)
+            docs = list(
+                await self.reranker.acompress_documents(docs, query=query)
+            )
 
         if self.summarizer_llm:
             docs = await self._async_summarize_if_needed(docs)
@@ -139,7 +158,9 @@ class MultiStepsRetriever(BaseRetriever):
 
         return [Document(page_content=summary)]
 
-    async def _async_summarize_if_needed(self, docs: list[Document]):
+    async def _async_summarize_if_needed(
+        self, docs: list[Document]
+    ) -> list[Document]:
         full_text = "\n\n".join(d.page_content for d in docs)
         if len(full_text) < self.max_summary_tokens * 4:
             return docs

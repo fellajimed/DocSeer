@@ -1,0 +1,20 @@
+DockerLogsWidget {
+    height: 100%;
+    width: 100%;
+}
+
+#log-search-bar {
+    height: auto;
+    width: 100%;
+    padding: 0 1;
+}
+
+#log-search {
+    width: 1fr;
+}
+
+#docker-log {
+    height: 1fr;
+    scrollbar-gutter: stable;
+    scrollbar-size: 1 1;
+}

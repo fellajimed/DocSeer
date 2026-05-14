@@ -1,13 +1,12 @@
-ChatbotWidget #body {
-    layout: horizontal;
-    height: 1fr;
-    background: transparent;
-}
-
 ChatbotWidget {
     width: 100%;
     height: 100%;
     layout: vertical;
+}
+
+ChatbotWidget #chat-container {
+    height: 1fr;
+    width: 100%;
 }
 
 ChatbotWidget Screen {
@@ -21,36 +20,61 @@ ChatbotWidget #chat-log {
     scrollbar-size-vertical: 1;
 }
 
-ChatbotWidget ChatMessage {
+/* ── User bubbles ──────────────────────────────────────────────────────────── */
+
+ChatbotWidget UserChatMessage {
     width: 100%;
     height: auto;
     margin: 0 0 1 0;
 }
 
+/* ── Bot bubbles ───────────────────────────────────────────────────────────── */
 
-ChatbotWidget SubmitTextArea {
+ChatbotWidget BotChatMessage {
+    width: 80%;
+    height: auto;
+    margin: 0 0 1 0;
+    layout: vertical;
+}
+
+/* Spinner shown while waiting for first token */
+ChatbotWidget BotChatMessage #bot-loading {
+    width: 8;
+    height: 1;
+    margin-left: 1;
+}
+
+/* Thinking collapsible — dim yellow to distinguish from the response */
+ChatbotWidget BotChatMessage #thinking-collapsible {
+    border: round $warning 40%;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+ChatbotWidget BotChatMessage #thinking-collapsible CollapsibleTitle {
+    color: $warning 60%;
+    text-style: italic;
+}
+
+ChatbotWidget BotChatMessage #thinking-content {
+    color: $text-muted;
+    padding: 0 1;
+}
+
+/* Response panel */
+ChatbotWidget BotChatMessage #response-content {
+    border: round $secondary;
+    padding: 0 1;
+}
+
+/* ── Input textarea (docked to bottom) ──────────────────────────────────────── */
+
+ChatbotWidget #input {
     dock: bottom;
     height: auto;
     max-height: 60%;
     width: 100%;
     margin: 0;
     padding: 0 1;
-    border: tall $primary; 
-}
-
-ChatbotWidget ChatMessage LoadingIndicator {
-    align-horizontal: left;
-
-    width: 8 !important;
-    height: 1 !important;
-
-    content-align: left middle;
-
-    background: transparent;
-    margin-left: 1;
-    dock: left;
-}
-
-ChatbotWidget ChatMessage LoadingIndicator > .loading-indicator--dot {
-    align-horizontal: left;
+    border: tall $primary;
 }
