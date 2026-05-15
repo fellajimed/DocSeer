@@ -116,6 +116,24 @@ class SubmitTextArea(TextArea):
             self.post_message(self.MacroModeChanged(active=False))
 
     async def _on_key(self, event: Key) -> None:
+        # ── Tab: auto-complete macro name ─────────────────────────────────────
+        if event.key == "tab":
+            text = self.text.strip()
+            if text.startswith("/"):
+                parts = text[1:].split(None, 1)
+                partial = parts[0].lower() if parts else ""
+                matches = [n for n in MACROS if n.startswith(partial)]
+                if len(matches) == 1:
+                    macro_args = parts[1] if len(parts) > 1 else ""
+                    suffix = " " if macro_args else ""
+                    self.text = f"/{matches[0]}{suffix}{macro_args}"
+                    cursor = len(self.text)
+                    self.cursor_location = (self.cursor_location[0], cursor)
+                    event.prevent_default()
+                    event.stop()
+                    return
+            return
+
         if event.key not in ("ctrl+j", "ctrl+m", "ctrl+enter"):
             return
 
@@ -401,15 +419,20 @@ class ChatbotWidget(Static):
         """Show or hide the macro hint label as the user types."""
         hint = self.query_one("#macro-hint", Static)
         if event.active:
-            matching = [
+            matches = [
                 f"/{name}"
                 for name in MACROS
                 if not event.partial or name.startswith(event.partial)
             ]
-            if matching:
-                hint.update("  ".join(matching))
+            if len(matches) == 1:
+                hint.update(f"[dim]Tab → {matches[0]}[/dim]")
                 hint.display = True
-                return
+            elif matches:
+                hint.update("  ".join(matches))
+                hint.display = True
+            else:
+                hint.display = False
+            return
         hint.display = False
 
     @on(SubmitTextArea.MacroTriggered)

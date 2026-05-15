@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import signal
@@ -7,6 +8,7 @@ from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, ContentSwitcher, Footer, Tab, Tabs, Label
+from textual.binding import Binding
 
 from chatbot import ChatbotWidget
 from docker_logs import DockerLogsWidget
@@ -26,9 +28,14 @@ class MainApp(App):
     ]
 
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
-        ("ctrl+q", "quit", "Quit"),
-        ("ctrl+s", "settings", "Settings"),
+        Binding("ctrl+c", "quit", "Quit"),
+        Binding("ctrl+q", "quit", "Quit"),
+        Binding("ctrl+t", "go_chat", "Chat", priority=True),
+        Binding("ctrl+f", "go_papers", "Papers", priority=True),
+        Binding("ctrl+l", "go_logs", "Logs", priority=True),
+        Binding("ctrl+s", "docseer_settings", "Settings", priority=True),
+        Binding("ctrl+p", "command_palette", "Textual", priority=True),
+        Binding("alt+p", "pick_papers", "Pick Papers", priority=True),
     ]
     TITLE = "DocSeer"
 
@@ -90,6 +97,24 @@ class MainApp(App):
 
     # ── tab switching ─────────────────────────────────────────────────────────
 
+    def action_go_chat(self) -> None:
+        self.query_one(ContentSwitcher).current = "tab_chat"
+        self.query_one("#btn_papers").display = True
+        self.query_one(Tabs).active = "tab_chat"
+        self._set_focus()
+
+    def action_go_papers(self) -> None:
+        self.query_one(ContentSwitcher).current = "tab_files"
+        self.query_one("#btn_papers").display = False
+        self.query_one(Tabs).active = "tab_files"
+        self._set_focus()
+
+    def action_go_logs(self) -> None:
+        self.query_one(ContentSwitcher).current = "tab_logs"
+        self.query_one("#btn_papers").display = False
+        self.query_one(Tabs).active = "tab_logs"
+        self._set_focus()
+
     @on(Tabs.TabActivated)
     def _switch_tab(self, event: Tabs.TabActivated) -> None:
         self.query_one(ContentSwitcher).current = event.tab.id
@@ -109,6 +134,12 @@ class MainApp(App):
             self.set_focus(None)
 
     # ── papers picker ─────────────────────────────────────────────────────────
+
+    def action_pick_papers(self) -> None:
+        if self.query_one(ContentSwitcher).current == "tab_chat":
+            asyncio.create_task(
+                self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
+            )
 
     @on(Button.Pressed, "#btn_papers")
     async def _open_papers_picker(self) -> None:
@@ -152,7 +183,7 @@ class MainApp(App):
     def _open_settings(self, event: Button.Pressed) -> None:
         self.push_screen(SettingsModal(), self._on_settings_closed)
 
-    def action_settings(self) -> None:
+    def action_docseer_settings(self) -> None:
         self.push_screen(SettingsModal(), self._on_settings_closed)
 
     def _on_settings_closed(self, changes: list[str] | None) -> None:

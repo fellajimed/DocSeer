@@ -193,6 +193,35 @@ Set `DOCSEER_OLLAMA_PULL_ON_STARTUP=false` if you pre-pull models yourself or wo
 
 ---
 
+## TUI keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `Ctrl+C` / `Ctrl+Q` | Quit |
+| `Ctrl+T` | Chat tab |
+| `Ctrl+F` | Papers tab |
+| `Ctrl+L` | Logs tab |
+| `Ctrl+S` | DocSeer Settings (LLM model, embedding model, theme) |
+| `Ctrl+P` | Textual Command Palette |
+| `Alt+P` | Paper Picker (filter which papers the chat queries) |
+
+**Chat tab:**
+
+| Key | Action |
+|---|---|
+| `Ctrl+J` / `Ctrl+M` / `Ctrl+Enter` | Send message |
+| `Tab` | Auto-complete `/macro` name |
+| `/papers` + `Ctrl+J` | Open paper filter picker |
+
+**Papers tab:**
+
+| Key | Action |
+|---|---|
+| Type a path or URL | Add a paper (PDF, `.bib`, or any URL) |
+| `Tab` → `Enter` | Select/deselect papers for the chat filter |
+
+---
+
 ## REST API overview
 
 The full interactive documentation is available at **http://localhost:8000/docs** once the stack is running.
