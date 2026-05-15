@@ -35,7 +35,7 @@ class MainApp(App):
         Binding("ctrl+l", "go_logs", "Logs", priority=True),
         Binding("ctrl+s", "docseer_settings", "Settings", priority=True),
         Binding("ctrl+p", "command_palette", "Textual", priority=True),
-        Binding("alt+p", "pick_papers", "Pick Papers", priority=True),
+        Binding("alt+p", "pick_papers", "Filter Papers", priority=True),
     ]
     TITLE = "DocSeer"
 
@@ -98,18 +98,24 @@ class MainApp(App):
     # ── tab switching ─────────────────────────────────────────────────────────
 
     def action_go_chat(self) -> None:
+        if self.query_one(ContentSwitcher).current == "tab_chat":
+            return
         self.query_one(ContentSwitcher).current = "tab_chat"
         self.query_one("#btn_papers").display = True
         self.query_one(Tabs).active = "tab_chat"
         self._set_focus()
 
     def action_go_papers(self) -> None:
+        if self.query_one(ContentSwitcher).current == "tab_files":
+            return
         self.query_one(ContentSwitcher).current = "tab_files"
         self.query_one("#btn_papers").display = False
         self.query_one(Tabs).active = "tab_files"
         self._set_focus()
 
     def action_go_logs(self) -> None:
+        if self.query_one(ContentSwitcher).current == "tab_logs":
+            return
         self.query_one(ContentSwitcher).current = "tab_logs"
         self.query_one("#btn_papers").display = False
         self.query_one(Tabs).active = "tab_logs"
@@ -136,10 +142,15 @@ class MainApp(App):
     # ── papers picker ─────────────────────────────────────────────────────────
 
     def action_pick_papers(self) -> None:
-        if self.query_one(ContentSwitcher).current == "tab_chat":
-            asyncio.create_task(
-                self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
-            )
+        if self.query_one(ContentSwitcher).current != "tab_chat":
+            return
+        from paper_picker import PaperPickerModal
+
+        if isinstance(self.screen, PaperPickerModal):
+            return
+        asyncio.create_task(
+            self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
+        )
 
     @on(Button.Pressed, "#btn_papers")
     async def _open_papers_picker(self) -> None:

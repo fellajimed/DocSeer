@@ -203,7 +203,7 @@ Set `DOCSEER_OLLAMA_PULL_ON_STARTUP=false` if you pre-pull models yourself or wo
 | `Ctrl+L` | Logs tab |
 | `Ctrl+S` | DocSeer Settings (LLM model, embedding model, theme) |
 | `Ctrl+P` | Textual Command Palette |
-| `Alt+P` | Paper Picker (filter which papers the chat queries) |
+| `Alt+P` | Filter Papers (open paper picker) |
 
 **Chat tab:**
 
