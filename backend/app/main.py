@@ -101,9 +101,7 @@ async def lifespan(app: FastAPI):
     app.state.retriever = retriever
     app.state.agent = agent
 
-    asyncio.create_task(
-        _warmup_model(llm.bind(reasoning=False), settings.llm_model)
-    )
+    asyncio.create_task(_warmup_model(llm, settings.llm_model))
 
     logger.info(
         "Agent ready — LLM: %s  embeddings: %s  topk: %d",

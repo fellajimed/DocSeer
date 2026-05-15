@@ -16,9 +16,9 @@ from docseer.config import read_config, get_main_config
 def init_reranker(model=None, topk=5, score_threshold=0.0, **kwargs):
     if model is None:
         return None
-    return AsyncFlashrankRerank(
+    return AsyncFlashrankRerank(  # type: ignore[call-arg]
         model=model, top_n=topk, score_threshold=score_threshold
-    )
+    )  # ty:ignore[missing-argument]
 
 
 @asynccontextmanager

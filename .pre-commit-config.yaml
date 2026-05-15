@@ -8,9 +8,21 @@ repos:
 
   - repo: local
     hooks:
-      - id: ty
-        name: ty type check
+      - id: ty-src
+        name: ty type check src/
         entry: uv run ty check src/
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty-ui
+        name: ty type check ui/
+        entry: uv run ty check ui/
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty-backend
+        name: ty type check backend/
+        entry: uv run ty check backend/
         language: system
         types: [python]
         pass_filenames: false

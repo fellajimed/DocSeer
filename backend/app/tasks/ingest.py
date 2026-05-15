@@ -72,7 +72,7 @@ def _update_status(
         paper = session.get(Paper, paper_id)
         if paper is None:
             return
-        paper.status = status
+        paper.status = status  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
         for k, v in extra.items():
             setattr(paper, k, v)
         session.commit()
@@ -127,7 +127,7 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
                 raise ValueError(
                     f"Paper {paper_id} has no source_path — cannot ingest"
                 )
-            source_path = paper.source_path
+            source_path = str(paper.source_path)
 
         logger.info("Purging existing embeddings for paper %s", paper_id)
         _retriever().delete_document(paper_id)
@@ -165,10 +165,10 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
             if paper is None:
                 raise RuntimeError(f"Paper {paper_id} disappeared mid-task")
 
-            paper.status = PaperStatus.done
-            paper.chunk_count = len(chunks)
-            paper.date_processed = datetime.now(timezone.utc)
-            paper.error_message = None
+            paper.status = PaperStatus.done  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+            paper.chunk_count = len(chunks)  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+            paper.date_processed = datetime.now(timezone.utc)  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+            paper.error_message = None  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
 
             for field, value in _backfill_metadata(paper, grobid_raw).items():
                 setattr(paper, field, value)

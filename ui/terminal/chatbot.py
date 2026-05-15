@@ -71,7 +71,7 @@ class SubmitTextArea(TextArea):
     class Submitted(TextArea.Changed):
         @property
         def value(self) -> str:
-            return self.text_area
+            return str(self.text_area)
 
     is_worker_finished: Optional[Callable[[], bool]] = None
 
@@ -133,7 +133,7 @@ class SubmitTextArea(TextArea):
                         self.MacroTriggered(macro_name, macro_args)
                     )
                     return
-                self.post_message(self.Submitted(text))
+                self.post_message(self.Submitted(text))  # type: ignore
                 return
 
         if event.key not in ("ctrl+j", "ctrl+m", "ctrl+enter"):
@@ -157,12 +157,14 @@ class SubmitTextArea(TextArea):
                 self.post_message(self.MacroTriggered(macro_name, macro_args))
                 return
 
-        self.post_message(self.Submitted(self.text))
+        self.post_message(self.Submitted(self.text))  # type: ignore
         self.text = ""
 
 
 class UserChatMessage(Static):
     """Right-aligned user bubble."""
+
+    content: str
 
     def __init__(self, content: str, **kwargs):
         super().__init__(**kwargs)
@@ -326,13 +328,11 @@ class ChatContainer(VerticalScroll):
     autoscroll = True
 
     @on(MouseScrollUp)
-    def _on_scroll_up(self) -> None:
-        """Freeze autoscroll the moment the user scrolls up."""
+    def _handle_scroll_up(self, event: MouseScrollUp) -> None:
         self.autoscroll = False
 
     @on(MouseScrollDown)
-    def _on_scroll_down(self) -> None:
-        """Re-enable autoscroll when the user scrolls back to the bottom."""
+    def _handle_scroll_down(self, event: MouseScrollDown) -> None:
         if self.max_scroll_y - self.scroll_y <= 3:
             self.autoscroll = True
 
@@ -402,7 +402,7 @@ class ChatbotWidget(Static):
             )
             return
         if event.name == "papers":
-            await self._macro_papers(event.args)
+            self._macro_papers(event.args)
         elif event.name in (
             "summarize",
             "extract",
@@ -411,7 +411,7 @@ class ChatbotWidget(Static):
             "critique",
         ):
             self._pending_macro = (event.name, event.args)
-            await self._macro_papers(event.args)
+            self._macro_papers(event.args)
         elif event.name == "__select__":
             from macro_selector import MacroSelectorModal
 

@@ -20,7 +20,7 @@ class Retriever(BaseRetriever):
         self,
         chunks: list[Document],
         metadata: dict[str, str],
-        parent_ids: list[Document] | None,
+        parent_ids: list[str] | None,
         parent_chunks: list[Document] | None,
     ) -> None:
         self.vector_db.add(chunks, metadata)
@@ -28,7 +28,7 @@ class Retriever(BaseRetriever):
         if not (
             self.docstore is None
             or parent_ids is None
-            and parent_chunks is None
+            or parent_chunks is None
         ):
             self.docstore.add(parent_ids, parent_chunks)
 
@@ -36,7 +36,7 @@ class Retriever(BaseRetriever):
         self,
         chunks: list[Document],
         metadata: dict[str, str],
-        parent_ids: list[Document] | None,
+        parent_ids: list[str] | None,
         parent_chunks: list[Document] | None,
     ) -> None:
         await self.vector_db.aadd(chunks, metadata)

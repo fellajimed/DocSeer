@@ -70,7 +70,7 @@ class MultiStepsRetriever(BaseRetriever):
         self,
         chunks: list[Document],
         metadata: dict[str, str],
-        parent_ids: list[Document] | None,
+        parent_ids: list[str] | None,
         parent_chunks: list[Document] | None,
     ) -> None:
         self.base_retriever.populate(
@@ -81,7 +81,7 @@ class MultiStepsRetriever(BaseRetriever):
         self,
         chunks: list[Document],
         metadata: dict[str, str],
-        parent_ids: list[Document] | None,
+        parent_ids: list[str] | None,
         parent_chunks: list[Document] | None,
     ) -> None:
         await self.base_retriever.apopulate(

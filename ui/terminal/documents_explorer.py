@@ -263,7 +263,7 @@ class DocumentsExplorerWidget(Static):
 
     def _refresh_selected_view(self) -> None:
         titles = [self._labels.get(pid, pid) for pid in self._selected_ids]
-        self.query_one("#selected_view").update(
+        self.query_one("#selected_view", Label).update(
             "\n".join(f"• {t}" for t in titles)
         )
 
@@ -308,7 +308,7 @@ class DocumentsExplorerWidget(Static):
         if not confirmed:
             return
         ids = set(self._selected_ids)
-        self.query_one("#selected_view").update("")
+        self.query_one("#selected_view", Label).update("")
         self._selected_ids.clear()
 
         if not ids:

@@ -45,9 +45,9 @@ def _source_uuid(source_path: str) -> uuid.UUID:
 def _dispatch(paper: Paper) -> IngestResponse:
     """Fire-and-forget ingest task, update paper.celery_task_id in place."""
     task = ingest_paper.apply_async(args=[str(paper.id)], queue="ingest")
-    paper.celery_task_id = task.id
-    paper.status = PaperStatus.pending
-    return IngestResponse(paper_id=paper.id, task_id=task.id, status="queued")
+    paper.celery_task_id = task.id  # type: ignore[assignment]
+    paper.status = PaperStatus.pending  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+    return IngestResponse(paper_id=paper.id, task_id=task.id, status="queued")  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
 
 
 async def _get_or_404(db: AsyncSession, paper_id: uuid.UUID) -> Paper:
@@ -106,8 +106,8 @@ async def add_paper(body: PaperCreate, db: DB):
         return JSONResponse(
             status_code=200,
             content=IngestResponse(
-                paper_id=existing.id,
-                task_id=existing.celery_task_id or "",
+                paper_id=existing.id,  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
+                task_id=existing.celery_task_id or "",  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
                 status="already_ingested",
             ).model_dump(mode="json"),
         )
@@ -118,10 +118,12 @@ async def add_paper(body: PaperCreate, db: DB):
         await db.commit()
         return resp
 
-    paper.status = PaperStatus.metadata_only
+    paper.status = PaperStatus.metadata_only  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
     await db.commit()
     return IngestResponse(
-        paper_id=paper.id, task_id="", status="metadata_only"
+        paper_id=paper.id,  # ty:ignore[invalid-argument-type]
+        task_id="",
+        status="metadata_only",  # type: ignore[arg-type]
     )
 
 
@@ -164,7 +166,9 @@ async def import_bibtex(body: BibtexImportRequest, db: DB):
             await db.commit()
         else:
             resp = IngestResponse(
-                paper_id=paper.id, task_id="", status="metadata_only"
+                paper_id=paper.id,  # ty:ignore[invalid-argument-type]
+                task_id="",
+                status="metadata_only",  # type: ignore[arg-type]
             )
         responses.append(resp)
 
@@ -199,7 +203,9 @@ async def import_from_url(body: UrlImportRequest, db: DB):
         await db.commit()
     else:
         resp = IngestResponse(
-            paper_id=paper.id, task_id="", status="metadata_only"
+            paper_id=paper.id,  # ty:ignore[invalid-argument-type]
+            task_id="",
+            status="metadata_only",  # type: ignore[arg-type]
         )
 
     if not body.trigger_ingest:
@@ -222,7 +228,7 @@ async def trigger_ingest(paper_id: uuid.UUID, body: IngestRequest, db: DB):
         )
 
     if body.source_path:
-        paper.source_path = body.source_path
+        paper.source_path = body.source_path  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
 
     if not paper.source_path:
         raise HTTPException(
@@ -230,7 +236,7 @@ async def trigger_ingest(paper_id: uuid.UUID, body: IngestRequest, db: DB):
             detail="No source_path on record — provide one in the request body",
         )
 
-    paper.error_message = None
+    paper.error_message = None  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
     resp = _dispatch(paper)
     await db.commit()
     return resp

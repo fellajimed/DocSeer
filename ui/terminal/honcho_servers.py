@@ -43,6 +43,8 @@ class HonchoLogWidget(Static):
         self.log_task = asyncio.create_task(self._read_logs())
 
     async def _read_logs(self):
+        assert self.process is not None
+        assert self.process.stdout is not None
         while True:
             line = await self.process.stdout.readline()
             if not line:

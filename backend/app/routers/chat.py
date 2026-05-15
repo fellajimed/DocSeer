@@ -198,7 +198,7 @@ async def invoke_chat(body: QueryRequest, request: Request) -> dict:
 
     response_text: str = result.content or ""
     thinking_text: str = (
-        result.additional_kwargs.get("reasoning_content") or None
+        result.additional_kwargs.get("reasoning_content") or ""
     )
 
     agent._update_chat_history(body.query, response_text)
