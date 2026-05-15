@@ -78,3 +78,44 @@ ChatbotWidget #input {
     padding: 0 1;
     border: tall $primary;
 }
+
+ChatbotWidget #input.-macro-mode {
+    border: tall $accent;
+}
+
+/* ── macro hint (sits just above the input) ──────────────────────────────────── */
+
+ChatbotWidget #macro-hint {
+    dock: bottom;
+    display: none;
+    height: 1;
+    padding: 0 2;
+    color: $accent;
+    text-style: italic;
+}
+
+/* ── bottom action bar: active filter chips ──────────────────────────────── */
+
+ChatbotWidget #filter-bar {
+    dock: bottom;
+    height: 1;
+    padding: 0 2;
+    background: $primary 10%;
+    align: left middle;
+}
+
+ChatbotWidget #filter-chips {
+    width: 1fr;
+    color: $primary;
+    text-style: bold;
+}
+
+ChatbotWidget #btn-clear-filter {
+    width: auto;
+    min-width: 10;
+    height: 1;
+    border: none;
+    padding: 0 1;
+    background: $warning 20%;
+    color: $warning;
+}

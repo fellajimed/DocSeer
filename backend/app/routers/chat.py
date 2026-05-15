@@ -55,6 +55,7 @@ async def _stream_chain(
     request: Request,
     query: str,
     think_mode: bool,
+    paper_ids: list[str] | None = None,
 ) -> AsyncIterator[str]:
     """
     Core streaming coroutine.
@@ -78,7 +79,7 @@ async def _stream_chain(
     if settings.chat_fast_retrieval:
         try:
             context = await asyncio.wait_for(
-                retriever.aretrieve(query),
+                retriever.aretrieve(query, paper_ids=paper_ids),
                 timeout=settings.chat_retrieval_timeout_seconds,
             )
             context_md = _build_context_md(query, context, settings)
@@ -90,7 +91,7 @@ async def _stream_chain(
                 exc,
             )
     else:
-        context = await retriever.aretrieve(query)
+        context = await retriever.aretrieve(query, paper_ids=paper_ids)
         context_md = _build_context_md(query, context, settings)
 
     if retrieval_error:
@@ -162,7 +163,7 @@ async def stream_chat(
     newline.  Event types: thinking | response | done | error.
     """
     return StreamingResponse(
-        _stream_chain(request, body.query, body.think_mode),
+        _stream_chain(request, body.query, body.think_mode, body.paper_ids),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -185,7 +186,7 @@ async def invoke_chat(body: QueryRequest, request: Request) -> dict:
     if settings.chat_fast_retrieval:
         try:
             context = await asyncio.wait_for(
-                retriever.aretrieve(body.query),
+                retriever.aretrieve(body.query, paper_ids=body.paper_ids),
                 timeout=settings.chat_retrieval_timeout_seconds,
             )
         except Exception as exc:
@@ -196,7 +197,9 @@ async def invoke_chat(body: QueryRequest, request: Request) -> dict:
             )
             context = []
     else:
-        context = await retriever.aretrieve(body.query)
+        context = await retriever.aretrieve(
+            body.query, paper_ids=body.paper_ids
+        )
     context_md = _build_context_md(body.query, context, settings)
 
     llm = agent.model.bind(reasoning=True) if body.think_mode else agent.model

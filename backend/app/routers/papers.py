@@ -147,8 +147,8 @@ async def import_bibtex(body: BibtexImportRequest, db: DB):
     """
     Parse a Zotero BibTeX export and create one Paper per entry.
     Skips entries whose bibtex_key already exists in the database.
-    If trigger_ingest=true, queues ingestion for any entry that has a
-    file path embedded in the BibTeX 'file' field.
+    If trigger_ingest=true and the entry has a source_path, queues ingestion;
+    otherwise the paper is created with status=metadata_only.
     """
     entries = parse_bibtex(body.bibtex)
     responses: list[IngestResponse] = []

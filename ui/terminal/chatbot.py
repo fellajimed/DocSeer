@@ -28,40 +28,119 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.message import Message
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.events import Key, MouseScrollDown, MouseScrollUp
-from textual.widgets import Collapsible, LoadingIndicator, Static, TextArea
+from textual.widgets import (
+    Button,
+    Collapsible,
+    LoadingIndicator,
+    Static,
+    TextArea,
+)
 from textual.worker import Worker
 
 from utils import AsyncRequester
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
+# ── macro registry ────────────────────────────────────────────────────────────
+# Maps macro name → short description.  Add entries here to register new macros
+# without touching SubmitTextArea or ChatbotWidget.
+
+MACROS: dict[str, str] = {
+    "papers": "Filter chat to specific documents",
+}
+
 
 # ── input widget ─────────────────────────────────────────────────────────────
 
 
 class SubmitTextArea(TextArea):
-    """TextArea that submits on Ctrl+j / Ctrl+m / Ctrl+Enter."""
+    """TextArea that submits on Ctrl+j / Ctrl+m / Ctrl+Enter.
 
-    is_worker_finished: Optional[Callable[[], bool]] = None
+    When the content matches a known /macro_name command, submitting posts
+    MacroTriggered instead of the usual Submitted.  While typing a `/…`
+    prefix the widget enters *macro mode*: its border shifts to the accent
+    colour and a MacroModeChanged event is fired so the parent can show a
+    contextual hint.
 
-    async def _on_key(self, event: Key) -> None:
-        if event.key in ("ctrl+j", "ctrl+m", "ctrl+enter"):
-            if self.is_worker_finished and not self.is_worker_finished():
-                event.prevent_default()
-                event.stop()
-                return
+    To add a new macro, add an entry to the module-level ``MACROS`` dict.
+    No changes to this class are needed.
+    """
 
-            event.prevent_default()
-            event.stop()
-            self.post_message(self.Submitted(self.text))
-            self.text = ""
+    # ── nested messages ───────────────────────────────────────────────────────
+
+    class MacroTriggered(Message):
+        """Posted when the user submits a known /macro command."""
+
+        def __init__(self, name: str, args: str = "") -> None:
+            super().__init__()
+            self.name = name
+            self.args = args
+
+    class MacroModeChanged(Message):
+        """Posted when the input enters or exits /macro typing mode."""
+
+        def __init__(self, active: bool, partial: str = "") -> None:
+            super().__init__()
+            self.active = active
+            self.partial = partial  # text typed after "/" so far (lowercased)
 
     class Submitted(TextArea.Changed):
         @property
         def value(self) -> str:
             return self.text_area
+
+    # ── class-level state ─────────────────────────────────────────────────────
+
+    is_worker_finished: Optional[Callable[[], bool]] = None
+
+    # ── event handlers ────────────────────────────────────────────────────────
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Track /macro prefix while typing and update visual state."""
+        # Filter out our own Submitted subclass — only react to real edits.
+        if type(event) is not TextArea.Changed:
+            return
+
+        text = self.text.strip()
+        if text.startswith("/"):
+            self.add_class("-macro-mode")
+            parts = text[1:].split()
+            partial = parts[0].lower() if parts else ""
+            self.post_message(
+                self.MacroModeChanged(active=True, partial=partial)
+            )
+        else:
+            self.remove_class("-macro-mode")
+            self.post_message(self.MacroModeChanged(active=False))
+
+    async def _on_key(self, event: Key) -> None:
+        if event.key not in ("ctrl+j", "ctrl+m", "ctrl+enter"):
+            return
+
+        if self.is_worker_finished and not self.is_worker_finished():
+            event.prevent_default()
+            event.stop()
+            return
+
+        text = self.text.strip()
+        event.prevent_default()
+        event.stop()
+
+        # ── macro dispatch ────────────────────────────────────────────────────
+        if text.startswith("/"):
+            parts = text[1:].split(None, 1)
+            macro_name = parts[0].lower() if parts else ""
+            macro_args = parts[1] if len(parts) > 1 else ""
+            if macro_name in MACROS:
+                self.text = ""
+                self.post_message(self.MacroTriggered(macro_name, macro_args))
+                return
+
+        # ── regular submission ────────────────────────────────────────────────
+        self.post_message(self.Submitted(self.text))
+        self.text = ""
 
 
 # ── message bubbles ───────────────────────────────────────────────────────────
@@ -289,8 +368,12 @@ class ChatbotWidget(Static):
                 vs.can_focus = False
         yield SubmitTextArea(
             id="input",
-            placeholder="Write a query... (Ctrl+j to send)",
+            placeholder="Write a query… (Ctrl+j to send)",
         )
+        yield Static("", id="macro-hint")
+        with Horizontal(id="filter-bar"):
+            yield Static("", id="filter-chips")
+            yield Button("✕ Clear", id="btn-clear-filter", variant="warning")
 
     async def on_mount(self) -> None:
         self._chat_log = self.query_one("#chat-log", ChatContainer)
@@ -298,6 +381,7 @@ class ChatbotWidget(Static):
         self._input.is_worker_finished = lambda: (
             self.agent_worker is None or self.agent_worker.is_finished
         )
+        self.query_one("#filter-bar").display = False
         self._input.focus()
 
     async def on_submit_text_area_submitted(
@@ -307,6 +391,99 @@ class ChatbotWidget(Static):
         if not user_text:
             return
         await self._submit_query(user_text)
+
+    # ── macro handling ────────────────────────────────────────────────────────
+
+    @on(SubmitTextArea.MacroModeChanged)
+    def _on_macro_mode_changed(
+        self, event: SubmitTextArea.MacroModeChanged
+    ) -> None:
+        """Show or hide the macro hint label as the user types."""
+        hint = self.query_one("#macro-hint", Static)
+        if event.active:
+            matching = [
+                f"/{name}"
+                for name in MACROS
+                if not event.partial or name.startswith(event.partial)
+            ]
+            if matching:
+                hint.update("  ".join(matching))
+                hint.display = True
+                return
+        hint.display = False
+
+    @on(SubmitTextArea.MacroTriggered)
+    async def _on_macro_triggered(
+        self, event: SubmitTextArea.MacroTriggered
+    ) -> None:
+        """Route a submitted /macro command to its handler."""
+        if event.name == "papers":
+            await self._macro_papers(event.args)
+        else:
+            self.notify(f"Unknown macro: /{event.name}", severity="warning")
+
+    async def _macro_papers(self, args: str) -> None:
+        """Handle the /papers macro — opens the paper-filter picker."""
+        from documents_explorer import DocumentsExplorerWidget
+        from paper_picker import PaperPickerModal
+
+        try:
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            active_ids = list(docs._selected_ids)
+        except Exception:
+            active_ids = []
+        self.app.push_screen(
+            PaperPickerModal(active_ids), self._on_paper_filter_result
+        )
+
+    def _on_paper_filter_result(
+        self, result: list[tuple[str, str]] | None
+    ) -> None:
+        """Callback from PaperPickerModal.
+
+        None   → cancelled; leave selection as-is
+        []     → clear selection (query all papers)
+        [...]  → new selection
+        """
+        if result is None:
+            return
+        from documents_explorer import DocumentsExplorerWidget
+
+        try:
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            docs.set_selection({pid for pid, _ in result})
+        except Exception:
+            pass
+        # Filter bar display is updated via SelectionChanged → MainApp →
+        # update_paper_display(); no direct update needed here.
+
+    def update_paper_display(self, selected: list[tuple[str, str]]) -> None:
+        """Update the filter bar chips to reflect the current paper selection.
+
+        Called by MainApp whenever DocumentsExplorerWidget.SelectionChanged fires.
+        ``selected`` is [(uuid_str, display_title), ...]; empty = all papers.
+        """
+        bar = self.query_one("#filter-bar")
+        chips = self.query_one("#filter-chips", Static)
+        if selected:
+            labels = "  ".join(f"[{title}]" for _, title in selected)
+            chips.update(labels)
+            bar.display = True
+        else:
+            chips.update("")
+            bar.display = False
+
+    @on(Button.Pressed, "#btn-clear-filter")
+    def _clear_filter(self, _: Button.Pressed) -> None:
+        """Clear the selection in DocumentsExplorerWidget (→ query all papers)."""
+        from documents_explorer import DocumentsExplorerWidget
+
+        try:
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            docs.set_selection(set())
+        except Exception:
+            pass
+        self._input.focus()
 
     async def _submit_query(self, user_text: str) -> None:
         self._user_bubble = UserChatMessage(user_text)
@@ -331,12 +508,28 @@ class ChatbotWidget(Static):
         self._chat_log.autoscroll = True
         self.call_after_refresh(self._chat_log.scroll_end)
 
+        # Read the current paper selection from DocumentsExplorerWidget.
+        # None = no filter (query all papers); list = restrict to these IDs.
+        paper_ids: list[str] | None = None
+        try:
+            from documents_explorer import DocumentsExplorerWidget
+
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            if docs._selected_ids:
+                paper_ids = list(docs._selected_ids)
+        except Exception:
+            pass
+
         try:
             async with await self._requester.request(
                 method="POST",
                 url=f"{API_URL}/chat/stream",
                 stream=True,
-                json={"query": prompt, "think_mode": self.think_mode},
+                json={
+                    "query": prompt,
+                    "think_mode": self.think_mode,
+                    "paper_ids": paper_ids,
+                },
             ) as response:
                 async for raw_line in response.aiter_lines():
                     if not raw_line.startswith("data: "):

@@ -84,8 +84,43 @@ class Retriever(BaseRetriever):
 
         return chunks
 
-    async def aretrieve(self, text: str) -> list[Document]:
+    async def aretrieve(
+        self,
+        text: str,
+        paper_ids: list[str] | None = None,
+    ) -> list[Document]:
+        """Async retrieval.
+
+        When *paper_ids* is provided the call bypasses the LangChain
+        ``ainvoke`` chain and hits ChromaDB directly with a ``$in`` filter,
+        so only chunks belonging to those papers are considered.
+        """
+        if paper_ids is not None:
+            return await self._fetch(text, paper_ids)
         return await self.ainvoke(text)
+
+    async def _fetch(self, text: str, paper_ids: list[str]) -> list[Document]:
+        """Direct retrieval path with paper_ids filter — bypasses LangChain."""
+        chunks: list[Document] = await self.vector_db.aquery(
+            text, self.topk, paper_ids=paper_ids
+        )
+        if self.docstore is not None and not self.docstore.is_empty:
+            parent_ids = [
+                p_id
+                for p_id in {
+                    doc.metadata.get("parent_id", None) for doc in chunks
+                }
+                if p_id is not None
+            ]
+            if parent_ids:
+                context = await asyncio.to_thread(
+                    self.docstore.get, parent_ids
+                )
+                chunks = [
+                    Document(page_content=c, metadata=doc.metadata)
+                    for c, doc in zip(context, chunks)
+                ]
+        return chunks
 
     async def _aget_relevant_documents(
         self,

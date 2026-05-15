@@ -3,11 +3,12 @@ DocumentsExplorerWidget
 ───────────────────────
 Papers management panel.  Communicates with the unified FastAPI backend via:
 
-  GET  /papers/             – list all papers (PaperRead objects)
-  POST /papers/             – add a paper from a local file path
-  POST /papers/import-url   – resolve a URL via Zotero, then optionally ingest
-  POST /papers/{id}/ingest  – (re-)trigger ingestion of an existing paper
-  DELETE /papers/{id}       – delete paper + embeddings
+  GET  /papers/                – list all papers (PaperRead objects)
+  POST /papers/                – add a paper from a local file path
+  POST /papers/import-url      – resolve a URL via Zotero, then optionally ingest
+  POST /papers/import-bibtex   – import metadata from a .bib file (selected entries)
+  POST /papers/{id}/ingest     – (re-)trigger ingestion of an existing paper
+  DELETE /papers/{id}          – delete paper + embeddings
 
 The selection list shows:
   "<title or filename>  [<status>]"
@@ -18,9 +19,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
+
+import bibtexparser
+from bibtexparser.model import Entry
 
 from textual import on
 from textual.app import ComposeResult
+from textual.message import Message
 from textual.containers import Horizontal, Vertical
 from textual.events import Mount
 from textual.widgets import (
@@ -34,6 +40,7 @@ from textual.widgets import (
 from textual.widgets.selection_list import Selection
 
 from utils import AsyncRequester
+from bibtex_import_modal import BibtexImportModal
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
@@ -78,6 +85,17 @@ def _paper_name(paper: dict) -> str:
 class DocumentsExplorerWidget(Static):
     can_focus = True
 
+    class SelectionChanged(Message):
+        """Posted when the user's paper selection changes.
+
+        ``selected`` is a list of ``(uuid_str, display_title)`` pairs.
+        An empty list means "no selection → query all papers".
+        """
+
+        def __init__(self, selected: list[tuple[str, str]]) -> None:
+            super().__init__()
+            self.selected = selected
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # paper_id (str UUID) → paper dict
@@ -88,6 +106,8 @@ class DocumentsExplorerWidget(Static):
         # task_id -> background poller task
         self._task_watchers: dict[str, asyncio.Task[None]] = {}
         self._requester = AsyncRequester()
+        # full entry list from the last .bib parse, used in the import callback
+        self._pending_bib_entries: list[Entry] = []
 
     # ── composition ───────────────────────────────────────────────────────────
 
@@ -148,10 +168,10 @@ class DocumentsExplorerWidget(Static):
 
         with Horizontal(id="input_bar"):
             yield Input(
-                placeholder="Path or URL to new paper ...",
+                placeholder="Path (.pdf / .bib) or URL to new paper …",
                 id="new_item_input",
             )
-            yield Button("Add Paper", id="add_btn")
+            yield Button("Add Paper", id="add_btn", variant="success")
 
     # ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -193,15 +213,15 @@ class DocumentsExplorerWidget(Static):
             selector = self.query_one("#doc_selector", SelectionList)
             selector.clear_options()
             selector.add_options(
-                [Selection(label, pid) for pid, label in self._labels.items()]
+                [
+                    Selection(label, pid, pid in self._selected_ids)
+                    for pid, label in self._labels.items()
+                ]
             )
             selector.border_title = f"Papers ({len(self._papers)})"
 
             self.query_one("#selected_view").border_title = "Selected"
-            titles = [self._labels.get(pid, pid) for pid in self._selected_ids]
-            self.query_one("#selected_view").update(
-                "\n".join(f"• {t}" for t in titles)
-            )
+            self._refresh_selected_view()
 
         except Exception as exc:
             self.notify(f"Failed to load papers: {exc}", severity="error")
@@ -273,20 +293,61 @@ class DocumentsExplorerWidget(Static):
     # ── selection tracking ────────────────────────────────────────────────────
 
     @on(Mount)
+    def _init_selected_view(self) -> None:
+        """Set the sidebar title on mount (data arrives later via _load_papers)."""
+        try:
+            self.query_one("#selected_view").border_title = "Selected"
+        except Exception:
+            pass
+
     @on(SelectionList.SelectedChanged)
     def _update_selected(self) -> None:
         selector = self.query_one("#doc_selector", SelectionList)
         currently_shown = set(selector._values.keys())
         selected_now = set(selector.selected)
+        new_selected = (self._selected_ids - currently_shown) | selected_now
 
-        self._selected_ids = (
-            self._selected_ids - currently_shown
-        ) | selected_now
+        # Guard: don't emit if nothing actually changed (suppresses spurious
+        # events fired by clear_options() / add_options() during list rebuild).
+        if new_selected == self._selected_ids:
+            return
 
+        self._selected_ids = new_selected
+        self._refresh_selected_view()
+        self._emit_selection_changed()
+
+    def _refresh_selected_view(self) -> None:
         titles = [self._labels.get(pid, pid) for pid in self._selected_ids]
         self.query_one("#selected_view").update(
             "\n".join(f"• {t}" for t in titles)
         )
+
+    def _emit_selection_changed(self) -> None:
+        selected = [
+            (pid, self._labels.get(pid, pid))
+            for pid in self._selected_ids
+            if pid in self._labels
+        ]
+        self.post_message(self.SelectionChanged(selected))
+
+    def set_selection(self, paper_ids: set[str]) -> None:
+        """Programmatically update the selection (e.g. from the chat filter).
+
+        Rebuilds the SelectionList with the new state, updates the sidebar,
+        and emits ``SelectionChanged`` once.  The ``_update_selected`` guard
+        suppresses the duplicate events fired by ``clear_options``/``add_options``.
+        """
+        self._selected_ids = set(paper_ids)
+        selector = self.query_one("#doc_selector", SelectionList)
+        selector.clear_options()
+        selector.add_options(
+            [
+                Selection(label, pid, pid in self._selected_ids)
+                for pid, label in self._labels.items()
+            ]
+        )
+        self._refresh_selected_view()
+        self._emit_selection_changed()
 
     # ── delete flow ───────────────────────────────────────────────────────────
 
@@ -404,28 +465,133 @@ class DocumentsExplorerWidget(Static):
                     stream=False,
                     json={"url": raw, "trigger_ingest": True},
                 )
+                response.raise_for_status()
+                data = response.json()
+                task_id = data.get("task_id", "")
+                if task_id:
+                    self._watch_task(task_id)
+                self.notify(
+                    f"Queued for ingestion\nTask: {task_id[:12]}…"
+                    if task_id
+                    else "Added (metadata only)."
+                )
+                await self._load_papers()
+
+            elif raw.lower().endswith(".bib"):
+                # BibTeX file — parse locally, let user select entries, then import
+                bib_path = Path(raw).expanduser()
+                if not bib_path.exists():
+                    self.notify(
+                        f"File not found: {bib_path}", severity="error"
+                    )
+                    return
+                bib_text = bib_path.read_text(encoding="utf-8")
+                library = bibtexparser.parse_string(bib_text)
+                if not library.entries:
+                    self.notify(
+                        "No entries found in BibTeX file.", severity="warning"
+                    )
+                    return
+                self._pending_bib_entries = list(library.entries)
+                await self.app.push_screen(
+                    BibtexImportModal(library.entries),
+                    self._on_bibtex_import_result,
+                )
+
             else:
-                # Local file path — create record and queue ingest
+                # Local PDF path — create record and queue ingest
                 response = await self._requester.request(
                     method="POST",
                     url=f"{API_URL}/papers/",
                     stream=False,
                     json={"source_path": raw},
                 )
-
-            response.raise_for_status()
-            data = response.json()
-            task_id = data.get("task_id", "")
-            if task_id:
-                self._watch_task(task_id)
-
-            self.notify(
-                f"Queued for ingestion\nTask: {task_id[:12]}…"
-                if task_id
-                else "Added (metadata only)."
-            )
-            # Reload list to show the new entry
-            await self._load_papers()
+                response.raise_for_status()
+                data = response.json()
+                task_id = data.get("task_id", "")
+                if task_id:
+                    self._watch_task(task_id)
+                self.notify(
+                    f"Queued for ingestion\nTask: {task_id[:12]}…"
+                    if task_id
+                    else "Added (metadata only)."
+                )
+                await self._load_papers()
 
         except Exception as exc:
             self.notify(f"Error adding paper: {exc}", severity="error")
+
+    async def _on_bibtex_import_result(
+        self, selected: list[Entry] | None
+    ) -> None:
+        """Callback after the user confirms the BibTeX selection modal.
+
+        Selected entries are queued for ingestion (trigger_ingest=True).
+        Deselected entries are saved as metadata-only records (no ingestion).
+        Cancelled (None) → nothing is imported.
+        """
+        if selected is None:
+            return
+
+        selected_keys = {e.key for e in selected}
+        not_selected = [
+            e for e in self._pending_bib_entries if e.key not in selected_keys
+        ]
+        self._pending_bib_entries = []
+
+        ingested = 0
+        metadata = 0
+
+        try:
+            # ── selected: queue for ingestion ─────────────────────────────────
+            if selected:
+                lib = bibtexparser.Library()
+                for e in selected:
+                    lib.add(e)
+                resp = await self._requester.request(
+                    method="POST",
+                    url=f"{API_URL}/papers/import-bibtex",
+                    stream=False,
+                    json={
+                        "bibtex": bibtexparser.write_string(lib),
+                        "trigger_ingest": True,
+                    },
+                )
+                resp.raise_for_status()
+                results = resp.json()
+                ingested = len(results)
+                for r in results:
+                    if r.get("task_id"):
+                        self._watch_task(r["task_id"])
+
+            # ── not selected: save as metadata-only ───────────────────────────
+            if not_selected:
+                lib2 = bibtexparser.Library()
+                for e in not_selected:
+                    lib2.add(e)
+                resp2 = await self._requester.request(
+                    method="POST",
+                    url=f"{API_URL}/papers/import-bibtex",
+                    stream=False,
+                    json={
+                        "bibtex": bibtexparser.write_string(lib2),
+                        "trigger_ingest": False,
+                    },
+                )
+                resp2.raise_for_status()
+                metadata = len(resp2.json())
+
+            total_sent = len(selected) + len(not_selected)
+            skipped = total_sent - ingested - metadata
+            parts = []
+            if ingested:
+                parts.append(f"{ingested} queued for ingestion")
+            if metadata:
+                parts.append(f"{metadata} saved as metadata")
+            if skipped:
+                parts.append(f"{skipped} already existed")
+            self.notify(", ".join(parts) if parts else "Nothing new imported.")
+            await self._load_papers()
+
+        except Exception as exc:
+            self.notify(f"BibTeX import error: {exc}", severity="error")

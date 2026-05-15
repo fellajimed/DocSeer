@@ -1,5 +1,5 @@
 """
-SettingsModal — TUI modal for changing LLM and embedding model.
+SettingsModal — TUI modal for changing LLM, embedding model, and UI theme.
 
 Each model picker is a FuzzyModelSelect widget: a search Input plus a live-
 filtered OptionList.  Fuzzy matching ranks consecutive character hits higher
@@ -19,6 +19,7 @@ Modal bindings:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import ClassVar
 
 from textual import on, work
@@ -34,6 +35,9 @@ from textual.widgets.option_list import Option
 from utils import AsyncRequester
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
+
+# Persist the chosen theme across TUI restarts
+THEME_FILE = Path.home() / ".docseer_theme"
 
 
 # ── fuzzy scorer ──────────────────────────────────────────────────────────────
@@ -113,11 +117,9 @@ class FuzzyModelSelect(Widget):
         self._selected = current if current in models else None
 
         inp = self.query_one(Input)
-        # Show the active model as placeholder so the field stays searchable
         inp.placeholder = (
             f"Search… (active: {current})" if current else self._placeholder
         )
-        # Populate the list showing all models, then highlight current
         self._refresh_list("")
         if current in models:
             self.query_one(OptionList).highlighted = models.index(current)
@@ -187,7 +189,7 @@ class FuzzyModelSelect(Widget):
 
 
 class SettingsModal(ModalScreen[list[str] | None]):
-    """Modal dialog for hot-swapping LLM and embedding models."""
+    """Modal dialog for hot-swapping LLM / embedding models and UI theme."""
 
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("escape", "cancel", "Cancel"),
@@ -201,9 +203,10 @@ class SettingsModal(ModalScreen[list[str] | None]):
 
     #settings-dialog {
         background: $surface;
-        border: thick $primary;
+        border: round $primary;
         padding: 1 2;
-        width: 64;
+        width: 80%;
+        max-width: 64;
         height: auto;
     }
 
@@ -222,6 +225,13 @@ class SettingsModal(ModalScreen[list[str] | None]):
     .setting-label {
         margin-bottom: 0;
         color: $text-muted;
+        text-style: italic;
+    }
+
+    .setting-divider {
+        height: 1;
+        margin: 1 0;
+        border-top: solid $primary 20%;
     }
 
     #btn-row {
@@ -232,6 +242,11 @@ class SettingsModal(ModalScreen[list[str] | None]):
 
     #btn-apply {
         margin-right: 1;
+        min-width: 10;
+    }
+
+    #btn-cancel {
+        min-width: 10;
     }
     """
 
@@ -240,10 +255,11 @@ class SettingsModal(ModalScreen[list[str] | None]):
         self._requester = AsyncRequester(retry_timeout=3.0)
         self._llm_current: str = ""
         self._embed_current: str = ""
+        self._theme_current: str = ""
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings-dialog"):
-            yield Static("Settings", id="settings-title")
+            yield Static("⚙  Settings", id="settings-title")
 
             with Vertical(classes="setting-row"):
                 yield Label("LLM Model", classes="setting-label")
@@ -259,6 +275,15 @@ class SettingsModal(ModalScreen[list[str] | None]):
                     id="sel-embed",
                 )
 
+            yield Static("", classes="setting-divider")
+
+            with Vertical(classes="setting-row"):
+                yield Label("Theme", classes="setting-label")
+                yield FuzzyModelSelect(
+                    placeholder="Search themes…",
+                    id="sel-theme",
+                )
+
             with Horizontal(id="btn-row"):
                 yield Button("Apply", id="btn-apply", variant="primary")
                 yield Button("Cancel", id="btn-cancel", variant="default")
@@ -268,7 +293,8 @@ class SettingsModal(ModalScreen[list[str] | None]):
 
     @work(exclusive=True)
     async def _load_data(self) -> None:
-        """Fetch available models and current selection from the API."""
+        """Fetch available models from the API and themes from the app."""
+        # ── models ────────────────────────────────────────────────────────────
         try:
             models_resp = await self._requester.request(
                 "GET", f"{API_URL}/models"
@@ -292,32 +318,53 @@ class SettingsModal(ModalScreen[list[str] | None]):
         except Exception as exc:
             self.notify(f"Failed to load models: {exc}", severity="error")
 
+        # ── themes ────────────────────────────────────────────────────────────
+        try:
+            themes = sorted(self.app.available_themes.keys())
+            self._theme_current = self.app.theme
+            self.query_one("#sel-theme", FuzzyModelSelect).set_models(
+                themes, self._theme_current
+            )
+        except Exception as exc:
+            self.notify(f"Failed to load themes: {exc}", severity="warning")
+
     # ── apply / cancel ────────────────────────────────────────────────────────
 
     async def _do_apply(self) -> None:
+        changes: list[str] = []
+
+        # ── model changes (via API) ───────────────────────────────────────────
         llm_val = self.query_one("#sel-llm", FuzzyModelSelect).value
         embed_val = self.query_one("#sel-embed", FuzzyModelSelect).value
 
-        # Skip fields that did not change
         if llm_val == self._llm_current:
             llm_val = None
         if embed_val == self._embed_current:
             embed_val = None
 
-        if llm_val is None and embed_val is None:
-            self.dismiss(None)
-            return
+        if llm_val is not None or embed_val is not None:
+            try:
+                resp = await self._requester.request(
+                    "POST",
+                    f"{API_URL}/settings/models",
+                    json={"llm_model": llm_val, "embedding_model": embed_val},
+                )
+                model_changes: list[str] = resp.json()
+                changes.extend(model_changes)
+            except Exception as exc:
+                self.notify(f"Failed to apply models: {exc}", severity="error")
 
-        try:
-            resp = await self._requester.request(
-                "POST",
-                f"{API_URL}/settings/models",
-                json={"llm_model": llm_val, "embedding_model": embed_val},
-            )
-            changes: list[str] = resp.json()
-            self.dismiss(changes if changes else None)
-        except Exception as exc:
-            self.notify(f"Failed to apply settings: {exc}", severity="error")
+        # ── theme change (local) ──────────────────────────────────────────────
+        theme_val = self.query_one("#sel-theme", FuzzyModelSelect).value
+        if theme_val and theme_val != self._theme_current:
+            self.app.theme = theme_val
+            changes.append(f"theme → {theme_val}")
+            try:
+                THEME_FILE.write_text(theme_val)
+            except Exception:
+                pass  # persistence is best-effort
+
+        self.dismiss(changes if changes else None)
 
     @on(Button.Pressed, "#btn-apply")
     async def _btn_apply(self, event: Button.Pressed) -> None:

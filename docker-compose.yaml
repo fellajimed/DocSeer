@@ -170,6 +170,7 @@ services:
       <<: *api-env
     volumes:
       - docstore_data:/data/docstore
+      - ${HOME}:${HOME}:ro   # read-only host home so local PDFs referenced in BibTeX resolve
     depends_on:
       postgres:
         condition: service_healthy
@@ -226,6 +227,7 @@ services:
       DOCSEER_API_URL: http://api:8000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${HOME}:${HOME}:ro   # full home read-only so any .bib/.pdf path the user types resolves
     depends_on:
       api:
         condition: service_healthy

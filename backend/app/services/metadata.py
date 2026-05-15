@@ -67,8 +67,9 @@ def parse_bibtex(bibtex_str: str) -> list[dict[str, Any]]:
     for entry in library.entries:
         fields: dict[str, Any] = {f.key: f.value for f in entry.fields}
 
-        # Zotero stores the local PDF path in the "file" field as
-        # "Description:path:mime" — extract the path component.
+        # Prefer the local file path (Zotero "file" field, format
+        # "Description:path:mime") over the URL for source_path so that
+        # ingestion reads a local copy when one is available.
         raw_file: str = str(fields.get("file", "") or "")
         source_path: str | None = None
         if raw_file:
@@ -79,6 +80,11 @@ def parse_bibtex(bibtex_str: str) -> list[dict[str, Any]]:
                 source_path = candidate or None
             else:
                 source_path = _clean(raw_file)
+
+        # Fall back to the url field so the worker can fetch the PDF remotely
+        # when no local file is embedded in the BibTeX entry.
+        if not source_path:
+            source_path = _clean(fields.get("url"))
 
         paper: dict[str, Any] = {
             "bibtex_key": entry.key,

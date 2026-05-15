@@ -56,11 +56,17 @@ class ChromaVectorDB:
     def delete(self, document_id: str) -> None:
         self.collection.delete(where={"document_id": document_id})
 
-    def query(self, text: str, n_results: int = 5) -> list[Document]:
+    def query(
+        self,
+        text: str,
+        n_results: int = 5,
+        paper_ids: list[str] | None = None,
+    ) -> list[Document]:
         embeds = self.model_embeddings.embed_query(text)
-        results = self.collection.query(
-            query_embeddings=[embeds], n_results=n_results
-        )
+        kwargs: dict = dict(query_embeddings=[embeds], n_results=n_results)
+        if paper_ids:
+            kwargs["where"] = {"document_id": {"$in": paper_ids}}
+        results = self.collection.query(**kwargs)
         return _chroma_results_to_documents(results)
 
     # ----------------------------------------------------------------- async
@@ -83,11 +89,15 @@ class ChromaVectorDB:
             self.collection.add, embeddings=embeds, **d_batch
         )
 
-    async def aquery(self, text: str, n_results: int = 5) -> list[Document]:
+    async def aquery(
+        self,
+        text: str,
+        n_results: int = 5,
+        paper_ids: list[str] | None = None,
+    ) -> list[Document]:
         embeds = await self.model_embeddings.aembed_query(text)
-        results = await asyncio.to_thread(
-            self.collection.query,
-            query_embeddings=[embeds],
-            n_results=n_results,
-        )
+        kwargs: dict = dict(query_embeddings=[embeds], n_results=n_results)
+        if paper_ids:
+            kwargs["where"] = {"document_id": {"$in": paper_ids}}
+        results = await asyncio.to_thread(self.collection.query, **kwargs)
         return _chroma_results_to_documents(results)

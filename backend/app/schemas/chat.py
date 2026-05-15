@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class QueryRequest(BaseModel):
     query: str
     think_mode: bool = False
+    paper_ids: list[str] | None = None
 
 
 class ChatMessage(BaseModel):

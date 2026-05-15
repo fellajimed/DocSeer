@@ -6,12 +6,12 @@ import subprocess
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, ContentSwitcher, Footer, Header, Tab, Tabs
+from textual.widgets import Button, ContentSwitcher, Footer, Tab, Tabs, Label
 
 from chatbot import ChatbotWidget
 from docker_logs import DockerLogsWidget
 from documents_explorer import DocumentsExplorerWidget
-from settings_modal import SettingsModal
+from settings_modal import THEME_FILE, SettingsModal
 from utils import AsyncRequester
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
@@ -37,7 +37,7 @@ class MainApp(App):
         self._requester = AsyncRequester()
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Label("DocSeer", id="header-label")
 
         with Horizontal(id="nav_bar"):
             yield Tabs(
@@ -46,8 +46,9 @@ class MainApp(App):
                 Tab("Logs", id="tab_logs"),
             )
             yield Button("■ Stop", id="btn_stop", variant="error")
+            yield Button("Papers", id="btn_papers", variant="default")
             yield Button("Think: OFF", id="btn_think", variant="success")
-            yield Button("Settings", id="btn_settings", variant="default")
+            yield Button("Settings", id="btn_settings", variant="primary")
             yield Button("Clear Chat", id="btn_clear_chat", variant="warning")
             yield Button(
                 "Clear History", id="btn_clear_history", variant="error"
@@ -63,12 +64,36 @@ class MainApp(App):
 
     def on_mount(self) -> None:
         self.query_one("#btn_stop").display = False
+        # "Papers" is only relevant on the Chat tab
+        self.query_one("#btn_papers").display = True
+        # Restore the last saved theme (best-effort)
+        try:
+            saved = THEME_FILE.read_text().strip()
+            if saved and saved in self.available_themes:
+                self.theme = saved
+        except Exception:
+            pass
+
+    # ── paper selection sync ──────────────────────────────────────────────────
+
+    @on(DocumentsExplorerWidget.SelectionChanged)
+    def _on_papers_selection_changed(
+        self, event: DocumentsExplorerWidget.SelectionChanged
+    ) -> None:
+        """Propagate paper-selection changes to the chat filter bar."""
+        try:
+            self.query_one("#tab_chat", ChatbotWidget).update_paper_display(
+                event.selected
+            )
+        except Exception:
+            pass
 
     # ── tab switching ─────────────────────────────────────────────────────────
 
     @on(Tabs.TabActivated)
     def _switch_tab(self, event: Tabs.TabActivated) -> None:
         self.query_one(ContentSwitcher).current = event.tab.id
+        self.query_one("#btn_papers").display = event.tab.id == "tab_chat"
         self._set_focus()
 
     def _set_focus(self) -> None:
@@ -78,8 +103,16 @@ class MainApp(App):
             self.set_focus(chat.query_one("#input"))
         elif tab_id == "tab_files":
             self.set_focus(self.query_one("#doc_selector"))
+        elif tab_id == "tab_logs":
+            self.set_focus(self.query_one("#log-search"))
         else:
             self.set_focus(None)
+
+    # ── papers picker ─────────────────────────────────────────────────────────
+
+    @on(Button.Pressed, "#btn_papers")
+    async def _open_papers_picker(self) -> None:
+        await self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
 
     # ── stop generation ───────────────────────────────────────────────────────
 

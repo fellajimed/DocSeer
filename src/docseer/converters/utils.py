@@ -1,17 +1,15 @@
-import os
 import re
 import requests
 
 
 def get_file_bytes(path_or_url: str) -> bytes:
-    if os.path.isfile(path_or_url):
-        with open(path_or_url, "rb") as f:
-            data = f.read()
-    else:
+    if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
         response = requests.get(path_or_url, timeout=20)
         response.raise_for_status()
-        data = response.content
-    return data
+        return response.content
+    else:
+        with open(path_or_url, "rb") as f:
+            return f.read()
 
 
 def extract_metadata(url: str, doc_bytes: bytes):
