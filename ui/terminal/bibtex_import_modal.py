@@ -20,7 +20,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static
+from textual.widgets import Button, Input, Static
 from textual.widgets import SelectionList
 from textual.widgets.selection_list import Selection
 
@@ -93,6 +93,10 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
         color: $text;
     }
 
+    #bib-search {
+        margin-bottom: 1;
+    }
+
     #bib-status {
         height: 1;
         color: $text-muted;
@@ -132,10 +136,12 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
     def __init__(self, entries: Sequence[Entry]) -> None:
         super().__init__()
         self._entries: list[Entry] = list(entries)
-        # All entries selected by default
-        self._pending: set[str] = {e.key for e in self._entries}
+        # No entries selected by default
+        self._pending: set[str] = set()
         # Keys of items currently rendered (in order)
         self._visible_keys: list[str] = []
+        # Current search query
+        self._search_text: str = ""
 
     # ── composition ───────────────────────────────────────────────────────────
 
@@ -143,8 +149,9 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
         n = len(self._entries)
         with Vertical(id="bib-dialog"):
             yield Static("  Import from BibTeX", id="bib-title")
+            yield Input(placeholder="Search entries…", id="bib-search")
             yield Static(
-                f"Found {n} entr{'y' if n == 1 else 'ies'}  —  all selected by default",
+                f"Found {n} entr{'y' if n == 1 else 'ies'}  —  selected = queued for ingestion, deselected = metadata only",
                 id="bib-status",
             )
             with Horizontal(id="bib-select-row"):
@@ -162,8 +169,8 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
                 yield Button("Cancel", id="btn-bib-cancel", variant="default")
 
     def on_mount(self) -> None:
-        self._populate_list()
-        self.query_one("#bib-list", SelectionList).focus()
+        self._populate_list("")
+        self.query_one("#bib-search", Input).focus()
 
     # ── list helpers ──────────────────────────────────────────────────────────
 
@@ -177,7 +184,7 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
             else:
                 self._pending.discard(key)
 
-    def _populate_list(self) -> None:
+    def _populate_list(self, query: str = "") -> None:
         # NOTE: do NOT call _sync_visible_to_pending() here — callers that need
         # to preserve the current widget state must sync before calling this.
         # Syncing inside _populate_list would overwrite _pending with stale
@@ -185,15 +192,18 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
         sel = self.query_one("#bib-list", SelectionList)
         sel.clear_options()
         self._visible_keys = []
+        query_lc = query.lower()
         for entry in self._entries:
-            self._visible_keys.append(entry.key)
-            sel.add_option(
-                Selection(
-                    _entry_label(entry),
-                    entry.key,
-                    entry.key in self._pending,
+            label = _entry_label(entry)
+            if not query_lc or query_lc in label.lower():
+                self._visible_keys.append(entry.key)
+                sel.add_option(
+                    Selection(
+                        label,
+                        entry.key,
+                        entry.key in self._pending,
+                    )
                 )
-            )
         self._refresh_status()
 
     def _refresh_status(self) -> None:
@@ -205,6 +215,11 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
 
     # ── event handlers ────────────────────────────────────────────────────────
 
+    @on(Input.Changed, "#bib-search")
+    def _search_changed(self, event: Input.Changed) -> None:
+        self._search_text = event.value
+        self._populate_list(self._search_text)
+
     @on(SelectionList.SelectedChanged, "#bib-list")
     def _on_selection_changed(self, _: SelectionList.SelectedChanged) -> None:
         sel = self.query_one("#bib-list", SelectionList)
@@ -214,12 +229,12 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
     @on(Button.Pressed, "#btn-bib-all")
     def _select_all(self, _: Button.Pressed) -> None:
         self._pending = {e.key for e in self._entries}
-        self._populate_list()
+        self._populate_list(self._search_text)
 
     @on(Button.Pressed, "#btn-bib-none")
     def _deselect_all(self, _: Button.Pressed) -> None:
         self._pending = set()
-        self._populate_list()
+        self._populate_list(self._search_text)
 
     # ── import / cancel ───────────────────────────────────────────────────────
 

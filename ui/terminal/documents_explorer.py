@@ -31,7 +31,6 @@ from textual.containers import Horizontal, Vertical
 from textual.events import Mount
 from textual.widgets import (
     Button,
-    ContentSwitcher,
     Input,
     Label,
     SelectionList,
@@ -41,6 +40,7 @@ from textual.widgets.selection_list import Selection
 
 from utils import AsyncRequester
 from bibtex_import_modal import BibtexImportModal
+from confirmation_modal import ConfirmationModal
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
@@ -124,47 +124,17 @@ class DocumentsExplorerWidget(Static):
                     yield Label(id="selected_view")
 
                     with Vertical(id="action_area"):
-                        with ContentSwitcher(initial="launch_state"):
-                            with Horizontal(id="launch_state"):
-                                yield Button(
-                                    "Delete Selected",
-                                    variant="error",
-                                    id="btn_delete",
-                                )
-                                yield Button(
-                                    "Re-ingest",
-                                    variant="primary",
-                                    id="btn_reingest",
-                                )
-                            with Vertical(id="confirm_delete_state"):
-                                yield Label(
-                                    "Delete selected?", id="confirm_delete_msg"
-                                )
-                                with Horizontal(id="button_row_delete"):
-                                    yield Button(
-                                        "Yes",
-                                        variant="success",
-                                        id="yes_delete",
-                                    )
-                                    yield Button(
-                                        "No!!", variant="error", id="no_delete"
-                                    )
-                            with Vertical(id="confirm_reingest_state"):
-                                yield Label(
-                                    "Re-ingest selected?",
-                                    id="confirm_reingest_msg",
-                                )
-                                with Horizontal(id="button_row_reingest"):
-                                    yield Button(
-                                        "Yes",
-                                        variant="success",
-                                        id="yes_reingest",
-                                    )
-                                    yield Button(
-                                        "No!!",
-                                        variant="error",
-                                        id="no_reingest",
-                                    )
+                        with Horizontal():
+                            yield Button(
+                                "Delete Selected",
+                                variant="error",
+                                id="btn_delete",
+                            )
+                            yield Button(
+                                "Re-ingest",
+                                variant="primary",
+                                id="btn_reingest",
+                            )
 
         with Horizontal(id="input_bar"):
             yield Input(
@@ -352,20 +322,19 @@ class DocumentsExplorerWidget(Static):
     # ── delete flow ───────────────────────────────────────────────────────────
 
     @on(Button.Pressed, "#btn_delete")
-    def _show_confirm_delete(self) -> None:
+    def _delete_selected(self) -> None:
         if not self._selected_ids:
             self.notify("Select at least one paper first.", severity="warning")
             return
-        self.query_one(ContentSwitcher).current = "confirm_delete_state"
+        self.app.push_screen(
+            ConfirmationModal("Delete selected papers?"),
+            self._on_delete_confirmed,
+        )
 
-    @on(Button.Pressed, "#no_delete")
-    def _hide_confirm_delete(self) -> None:
-        self.query_one(ContentSwitcher).current = "launch_state"
-
-    @on(Button.Pressed, "#yes_delete")
-    async def _confirm_delete(self) -> None:
+    def _on_delete_confirmed(self, confirmed: bool | None) -> None:
+        if not confirmed:
+            return
         ids = set(self._selected_ids)
-        self.query_one(ContentSwitcher).current = "launch_state"
         self.query_one("#selected_view").update("")
         self._selected_ids.clear()
 
@@ -373,6 +342,9 @@ class DocumentsExplorerWidget(Static):
             self.notify("Nothing selected!", severity="error")
             return
 
+        asyncio.create_task(self._do_delete(ids))
+
+    async def _do_delete(self, ids: set[str]) -> None:
         tasks = [
             self._requester.request(
                 method="DELETE",
@@ -393,7 +365,6 @@ class DocumentsExplorerWidget(Static):
                 self._papers.pop(pid, None)
                 self._labels.pop(pid, None)
 
-        # Refresh list
         selector = self.query_one("#doc_selector", SelectionList)
         selector.clear_options()
         selector.add_options(
@@ -407,21 +378,21 @@ class DocumentsExplorerWidget(Static):
     # ── re-ingest flow ────────────────────────────────────────────────────────
 
     @on(Button.Pressed, "#btn_reingest")
-    def _show_confirm_reingest(self) -> None:
+    def _reingest_selected(self) -> None:
         if not self._selected_ids:
             self.notify("Select at least one paper first.", severity="warning")
             return
-        self.query_one(ContentSwitcher).current = "confirm_reingest_state"
+        self.app.push_screen(
+            ConfirmationModal("Re-ingest selected papers?"),
+            self._on_reingest_confirmed,
+        )
 
-    @on(Button.Pressed, "#no_reingest")
-    def _hide_confirm_reingest(self) -> None:
-        self.query_one(ContentSwitcher).current = "launch_state"
+    def _on_reingest_confirmed(self, confirmed: bool | None) -> None:
+        if not confirmed:
+            return
+        asyncio.create_task(self._do_reingest(set(self._selected_ids)))
 
-    @on(Button.Pressed, "#yes_reingest")
-    async def _confirm_reingest(self) -> None:
-        ids = set(self._selected_ids)
-        self.query_one(ContentSwitcher).current = "launch_state"
-
+    async def _do_reingest(self, ids: set[str]) -> None:
         for pid in ids:
             try:
                 response = await self._requester.request(

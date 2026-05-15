@@ -225,6 +225,7 @@ services:
     container_name: docseer-tui
     environment:
       DOCSEER_API_URL: http://api:8000
+      TZ: ${TZ:-Europe/Paris}   # host timezone → container timestamps
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${HOME}:${HOME}:ro   # full home read-only so any .bib/.pdf path the user types resolves

@@ -6,6 +6,9 @@ COMPOSE_NATIVE = docker compose -f docker-compose.yaml -f docker-compose.native-
 
 # ── environment ───────────────────────────────────────────────────────────────
 
+# Forward host timezone into containers so timestamps match the laptop clock.
+export TZ
+
 # Copy .env.example on first use
 .env:
 	cp .env.example .env
