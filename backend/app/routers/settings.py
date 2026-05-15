@@ -27,9 +27,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["settings"])
 
 
-# ── schemas ───────────────────────────────────────────────────────────────────
-
-
 class ModelUpdate(BaseModel):
     llm_model: Optional[str] = None
     embedding_model: Optional[str] = None
@@ -38,9 +35,6 @@ class ModelUpdate(BaseModel):
 class CurrentModels(BaseModel):
     llm_model: str
     embedding_model: str
-
-
-# ── endpoints ─────────────────────────────────────────────────────────────────
 
 
 @router.get("/models", response_model=list[str])
@@ -91,7 +85,6 @@ async def update_models(body: ModelUpdate, request: Request) -> list[str]:
 
     changes: list[str] = []
 
-    # ── LLM hot-swap ─────────────────────────────────────────────────────────
     if body.llm_model and body.llm_model != agent.model.model:
         new_llm = ChatOllama(
             model=body.llm_model,
@@ -105,14 +98,12 @@ async def update_models(body: ModelUpdate, request: Request) -> list[str]:
             llm_model=new_llm,
             max_turns=settings.chat_history_turns,
         )
-        # Preserve in-memory chat history across the swap
         new_agent.chat_history = agent.chat_history
 
         request.app.state.agent = new_agent
         changes.append(f"LLM → {body.llm_model}")
         logger.info("LLM hot-swapped to %s", body.llm_model)
 
-    # ── Embedding hot-swap ────────────────────────────────────────────────────
     if (
         body.embedding_model
         and body.embedding_model != retriever.vector_db.model_embeddings.model

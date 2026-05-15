@@ -40,12 +40,9 @@ from textual.events import Key
 from textual.widgets import Input, RichLog, Static
 
 
-# ── service → (container name, Rich colour) ──────────────────────────────────
-
-
 class _Service(NamedTuple):
-    container: str  # full container name
-    colour: str  # Rich colour string
+    container: str
+    colour: str
 
 
 SERVICES: list[_Service] = [
@@ -60,16 +57,11 @@ SERVICES: list[_Service] = [
     _Service("docseer-zotero", "bright_white"),
 ]
 
-# Padding so that service labels align neatly (includes "app" pseudo-label)
 _LABEL_WIDTH = max(len(s.container) for s in SERVICES)
 
-# Maximum lines kept in the in-memory buffer and rendered in the RichLog.
 _MAX_LINES = 5_000
 
 
-# ── Python logging → RichLog handler ─────────────────────────────────────────
-
-# Level → Rich colour for the badge + message text
 _LEVEL_COLOUR: dict[int, str] = {
     logging.DEBUG: "dim",
     logging.INFO: "white",
@@ -78,7 +70,6 @@ _LEVEL_COLOUR: dict[int, str] = {
     logging.CRITICAL: "bold red",
 }
 
-# Fixed-width 5-char badge shown after the │ separator
 _LEVEL_BADGE: dict[int, str] = {
     logging.DEBUG: "DEBUG",
     logging.INFO: "INFO ",
@@ -87,8 +78,6 @@ _LEVEL_BADGE: dict[int, str] = {
     logging.CRITICAL: "CRIT ",
 }
 
-# External libraries that produce too much noise at DEBUG / INFO level.
-# Raised to WARNING so they don't drown out application records.
 _QUIET_LOGGERS = [
     "httpx",
     "httpcore",
@@ -133,9 +122,6 @@ class _RichLogHandler(logging.Handler):
             self.handleError(record)
 
 
-# ── custom RichLog with autoscroll freeze ─────────────────────────────────────
-
-
 class _AutoScrollLog(RichLog):
     """RichLog that freezes autoscroll when the user scrolls up and re-enables
     it when they scroll back near the bottom — mirrors ChatContainer behaviour."""
@@ -146,9 +132,6 @@ class _AutoScrollLog(RichLog):
     def on_mouse_scroll_down(self) -> None:
         if self.max_scroll_y - self.scroll_y <= 3:
             self.auto_scroll = True
-
-
-# ── widget ────────────────────────────────────────────────────────────────────
 
 
 class DockerLogsWidget(Static):
@@ -165,7 +148,6 @@ class DockerLogsWidget(Static):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        # (markup, plain_text) for every line ever written — used for filtering
         self._log_buffer: list[tuple[str, str]] = []
         self._filter: str = ""
 
@@ -187,7 +169,6 @@ class DockerLogsWidget(Static):
         self._log = self.query_one(_AutoScrollLog)
         self._tasks: list[asyncio.Task] = []
 
-        # ── install Python logging handler ────────────────────────────────────
         self._log_handler = _RichLogHandler(self._write_buffered)
         self._log_handler.setLevel(logging.DEBUG)
         self._log_handler.setFormatter(
@@ -195,25 +176,20 @@ class DockerLogsWidget(Static):
         )
         root_logger = logging.getLogger()
         root_logger.addHandler(self._log_handler)
-        # Ensure the root logger passes DEBUG records through
         if (
             root_logger.level == logging.NOTSET
             or root_logger.level > logging.DEBUG
         ):
             root_logger.setLevel(logging.DEBUG)
-        # Silence noisy third-party libraries so app records stay readable
         for name in _QUIET_LOGGERS:
             logging.getLogger(name).setLevel(logging.WARNING)
 
-        # ── start Docker tail tasks ───────────────────────────────────────────
         for service in SERVICES:
             task = asyncio.create_task(
                 self._tail(service),
                 name=f"tail-{service.container}",
             )
             self._tasks.append(task)
-
-    # ── search ────────────────────────────────────────────────────────────────
 
     @on(Input.Changed, "#log-search")
     def _on_search_changed(self, event: Input.Changed) -> None:
@@ -225,7 +201,7 @@ class DockerLogsWidget(Static):
         if event.key == "escape":
             search = self.query_one("#log-search", Input)
             if search.value:
-                search.value = ""  # triggers Input.Changed → _apply_filter
+                search.value = ""
                 event.stop()
             elif search.has_focus:
                 self._log.focus()
@@ -240,23 +216,17 @@ class DockerLogsWidget(Static):
                 self._log.write(markup)
 
         if not self._filter:
-            # Restore autoscroll and jump to the bottom when filter is cleared
             self._log.auto_scroll = True
             self._log.scroll_end(animate=False)
         else:
-            # Don't auto-scroll while the user is searching
             self._log.auto_scroll = False
-
-    # ── internals ─────────────────────────────────────────────────────────────
 
     def _write_buffered(self, markup: str, plain: str) -> None:
         """Append to the line buffer and conditionally write to the RichLog."""
         self._log_buffer.append((markup, plain))
-        # Trim buffer to keep memory bounded (RichLog is capped via max_lines)
         if len(self._log_buffer) > _MAX_LINES:
             del self._log_buffer[: len(self._log_buffer) - _MAX_LINES]
 
-        # Only push to the visible widget if the line matches the active filter
         if not self._filter or self._filter in plain:
             self._log.write(markup)
 
@@ -269,7 +239,6 @@ class DockerLogsWidget(Static):
             f"[{service.colour}]{label} │ [/{service.colour}]"
             f"{escape(line)}"
         )
-        # plain_text used for filtering: include service name + raw line
         plain = f"{service.container} {line}".lower()
         self._write_buffered(markup, plain)
 
@@ -305,13 +274,9 @@ class DockerLogsWidget(Static):
                     line = raw_line.decode(errors="replace").rstrip()
                     self._write(service, line)
 
-                # Process exited — container stopped or was removed
                 await proc.wait()
 
             except asyncio.CancelledError:
-                # Task is being shut down: terminate the subprocess so its
-                # pipe is closed before the event loop exits, preventing the
-                # "Event loop is closed" RuntimeError from BaseSubprocessTransport.__del__
                 if proc is not None and proc.returncode is None:
                     proc.terminate()
                     with contextlib.suppress(Exception):
@@ -319,7 +284,6 @@ class DockerLogsWidget(Static):
                 raise
 
             except (FileNotFoundError, PermissionError) as exc:
-                # docker binary not found or socket not accessible
                 self._write_system(f"[docker] {exc}")
                 await asyncio.sleep(10)
                 continue
@@ -327,10 +291,7 @@ class DockerLogsWidget(Static):
             except Exception as exc:
                 self._write_system(f"[{service.container}] error: {exc}")
 
-            # Brief pause before retrying (container may restart)
             await asyncio.sleep(3)
-
-    # ── cleanup ───────────────────────────────────────────────────────────────
 
     async def on_unmount(self) -> None:
         """Called by Textual on any exit path — Ctrl+C, SIGTERM, action_quit."""
@@ -338,8 +299,6 @@ class DockerLogsWidget(Static):
 
     async def shutdown(self) -> None:
         """Cancel all tailing tasks and remove the logging handler (idempotent)."""
-        # Remove Python logging handler first so no more records are emitted
-        # to the (soon to be torn down) RichLog widget.
         root_logger = logging.getLogger()
         if hasattr(self, "_log_handler"):
             root_logger.removeHandler(self._log_handler)

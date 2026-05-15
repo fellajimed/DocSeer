@@ -29,14 +29,10 @@ class PaperStatus(str, enum.Enum):
 class Paper(Base):
     __tablename__ = "papers"
 
-    # ----------------------------------------------------------------- identity
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    # ------------------------------------------------------------------ source
-    # file path, URL, or None when added from bibtex without a local file
     source_path = Column(Text, nullable=True, unique=True)
 
-    # --------------------------------------------------------- bibliographic
     title = Column(Text, nullable=True)
     authors = Column(ARRAY(Text), nullable=True)
     abstract = Column(Text, nullable=True)
@@ -48,14 +44,12 @@ class Paper(Base):
     url = Column(Text, nullable=True)
     isbn = Column(Text, nullable=True)
 
-    # -------------------------------------------------------- zotero / bibtex
     bibtex_key = Column(Text, nullable=True, index=True)
     bibtex_raw = Column(Text, nullable=True)
     zotero_key = Column(Text, nullable=True)
     collection = Column(Text, nullable=True)
     tags = Column(ARRAY(Text), nullable=True)
 
-    # --------------------------------------------------------- ingestion state
     status = Column(
         SAEnum(PaperStatus, name="paperstatus"),
         nullable=False,
@@ -66,11 +60,9 @@ class Paper(Base):
     chunk_count = Column(Integer, nullable=True)
     celery_task_id = Column(Text, nullable=True)
 
-    # ------------------------------------------------------------------ times
     date_added = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     date_processed = Column(DateTime(timezone=True), nullable=True)
 
-    # ------------------------------------------------------------ flexible bag
     extra_metadata = Column(JSON, nullable=True)

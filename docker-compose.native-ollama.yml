@@ -1,23 +1,6 @@
-# docker-compose.native-ollama.yml
-# ──────────────────────────────────────────────────────────────────────────────
-# Override: use the Ollama instance running natively on the macOS host
-# (with Metal GPU acceleration) instead of the CPU-only Dockerized service.
-#
-# Usage:
-#   make up-native          # start backend (native Ollama mode)
-#   make run-native         # start backend + TUI (native Ollama mode)
-#
-# Prerequisites:
-#   1. Ollama installed:  brew install ollama
-#   2. Ollama running:    ollama serve   (or via the Ollama.app menu bar icon)
-#   3. Models pulled:     make pull-models-native
-# ──────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # Replace the real Ollama with a tiny always-healthy placeholder so that
-  # model-puller's `depends_on: ollama: condition: service_healthy` is satisfied
-  # instantly without starting a real Ollama server in Docker.
   ollama:
     image: alpine:3.19
     container_name: docseer-ollama
@@ -30,16 +13,12 @@ services:
       retries: 1
       start_period: 0s
 
-  # Replace model-puller with a no-op that exits 0 immediately, satisfying
-  # the `service_completed_successfully` condition in api/worker depends_on.
-  # Models must already be present in the native Ollama instance.
   model-puller:
     image: alpine:3.19
     container_name: docseer-model-puller
     entrypoint: ["true"]
     command: []
 
-  # Point api and worker at the native host Ollama via Docker's special DNS name.
   api:
     environment:
       DOCSEER_OLLAMA_BASE_URL: http://host.docker.internal:11434

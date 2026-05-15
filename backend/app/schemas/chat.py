@@ -5,10 +5,11 @@ class QueryRequest(BaseModel):
     query: str
     think_mode: bool = False
     paper_ids: list[str] | None = None
+    topk: int = 5
 
 
 class ChatMessage(BaseModel):
-    role: str  # "human" | "ai"
+    role: str
     content: str
 
 

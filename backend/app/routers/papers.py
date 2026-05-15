@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/papers", tags=["papers"])
 DB = Annotated[AsyncSession, Depends(get_db)]
 
-# Stable namespace for source-path-derived UUIDs (RFC 4122 §4.3)
 _NS = uuid.NAMESPACE_URL
 
 
@@ -41,9 +40,6 @@ def _source_uuid(source_path: str) -> uuid.UUID:
     inserts simply hit a primary-key conflict rather than creating duplicates.
     """
     return uuid.uuid5(_NS, source_path)
-
-
-# ── helpers ───────────────────────────────────────────────────────────────────
 
 
 def _dispatch(paper: Paper) -> IngestResponse:
@@ -61,9 +57,6 @@ async def _get_or_404(db: AsyncSession, paper_id: uuid.UUID) -> Paper:
     return paper
 
 
-# ── list / get ────────────────────────────────────────────────────────────────
-
-
 @router.get("/", response_model=list[PaperRead])
 async def list_papers(db: DB):
     rows = await db.execute(select(Paper).order_by(Paper.date_added.desc()))
@@ -73,9 +66,6 @@ async def list_papers(db: DB):
 @router.get("/{paper_id}", response_model=PaperRead)
 async def get_paper(paper_id: uuid.UUID, db: DB):
     return await _get_or_404(db, paper_id)
-
-
-# ── create / ingest ───────────────────────────────────────────────────────────
 
 
 @router.post(
@@ -101,11 +91,8 @@ async def add_paper(body: PaperCreate, db: DB):
         await db.flush()
     except IntegrityError:
         await db.rollback()
-        # Try PK lookup first (fast path: same source_path → same UUID5).
         existing = await db.get(Paper, paper_id)
         if existing is None:
-            # Conflict came from the source_path UNIQUE constraint against a
-            # row that was inserted before the UUID5 migration (different id).
             result = await db.execute(
                 select(Paper).where(Paper.source_path == body.source_path)
             )
@@ -126,9 +113,9 @@ async def add_paper(body: PaperCreate, db: DB):
         )
 
     if paper.source_path:
-        await db.commit()  # row must be visible to the worker before we queue
+        await db.commit()
         resp = _dispatch(paper)
-        await db.commit()  # persist celery_task_id + status=pending
+        await db.commit()
         return resp
 
     paper.status = PaperStatus.metadata_only
@@ -154,7 +141,6 @@ async def import_bibtex(body: BibtexImportRequest, db: DB):
     responses: list[IngestResponse] = []
 
     for entry in entries:
-        # dedup by bibtex_key
         if entry.get("bibtex_key"):
             existing = await db.execute(
                 select(Paper).where(Paper.bibtex_key == entry["bibtex_key"])
@@ -171,11 +157,11 @@ async def import_bibtex(body: BibtexImportRequest, db: DB):
         )
         db.add(paper)
         await db.flush()
-        await db.commit()  # row must exist before the task can read it
+        await db.commit()
 
         if body.trigger_ingest and paper.source_path:
             resp = _dispatch(paper)
-            await db.commit()  # persist celery_task_id + status=pending
+            await db.commit()
         else:
             resp = IngestResponse(
                 paper_id=paper.id, task_id="", status="metadata_only"
@@ -208,9 +194,9 @@ async def import_from_url(body: UrlImportRequest, db: DB):
     await db.flush()
 
     if body.trigger_ingest:
-        await db.commit()  # row must be visible to the worker before we queue
+        await db.commit()
         resp = _dispatch(paper)
-        await db.commit()  # persist celery_task_id + status=pending
+        await db.commit()
     else:
         resp = IngestResponse(
             paper_id=paper.id, task_id="", status="metadata_only"
@@ -250,9 +236,6 @@ async def trigger_ingest(paper_id: uuid.UUID, body: IngestRequest, db: DB):
     return resp
 
 
-# ── update / delete ───────────────────────────────────────────────────────────
-
-
 @router.put("/{paper_id}", response_model=PaperRead)
 async def update_paper(paper_id: uuid.UUID, body: PaperUpdate, db: DB):
     paper = await _get_or_404(db, paper_id)
@@ -272,6 +255,5 @@ async def delete_paper(
     had_embeddings = paper.status == PaperStatus.done
     await db.delete(paper)
     await db.commit()
-    # clean up vectors + docstore without blocking the response
     if had_embeddings:
         background_tasks.add_task(delete_paper_embeddings, pid)

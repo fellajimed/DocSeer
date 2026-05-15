@@ -10,6 +10,7 @@ process so Docling models load only once per worker, not once per task.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -30,12 +31,6 @@ from ..models.paper import Paper, PaperStatus
 from ..services.metadata import grobid_metadata_to_paper
 
 logger = logging.getLogger(__name__)
-
-
-# ─── worker-process singletons ───────────────────────────────────────────────
-# These are initialised once per Celery worker process, not once per task.
-# Docling loads ~500 MB of layout/OCR models on first instantiation — caching
-# this saves several seconds on every subsequent task.
 
 
 @lru_cache(maxsize=1)
@@ -68,9 +63,6 @@ def _retriever() -> Retriever:
     )
 
 
-# ─── helpers ─────────────────────────────────────────────────────────────────
-
-
 def _update_status(
     paper_id: uuid.UUID,
     status: PaperStatus,
@@ -97,9 +89,6 @@ def _backfill_metadata(
         if value and not getattr(paper, field, None):
             updates[field] = value
     return updates
-
-
-# ─── task ────────────────────────────────────────────────────────────────────
 
 
 @celery_app.task(
@@ -129,7 +118,6 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
         )
 
     try:
-        # ── 1. load ──────────────────────────────────────────────────────────
         _progress("loading")
         with SyncSessionFactory() as session:
             paper = session.get(Paper, paper_uuid)
@@ -141,44 +129,37 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
                 )
             source_path = paper.source_path
 
-        # Purge any existing embeddings + docstore entries so that re-ingesting
-        # a paper never accumulates duplicate chunks in ChromaDB/LocalFileStore.
-        # This is a no-op on first ingest (delete finds nothing).
         logger.info("Purging existing embeddings for paper %s", paper_id)
         _retriever().delete_document(paper_id)
 
         _update_status(paper_uuid, PaperStatus.processing)
 
-        # ── 2. convert ───────────────────────────────────────────────────────
         _progress("converting")
-        result = _converter().convert(source_path)
+        result = asyncio.run(_converter().aconvert(source_path))
         content: str = result.pop("content", "")
-        grobid_raw: dict[str, Any] = (
-            result  # everything else is GROBID metadata
-        )
+        grobid_raw: dict[str, Any] = result
 
         if not content.strip():
             raise RuntimeError(
                 f"Docling returned empty content for {source_path}"
             )
 
-        # ── 3. chunk ─────────────────────────────────────────────────────────
         _progress("chunking")
         chunk_result = _chunker().chunk(content, paper_id)
         chunks = chunk_result["chunks"]
         parent_ids = chunk_result["parent_ids"]
         parent_chunks = chunk_result["parent_chunks"]
 
-        # ── 4. embed + store ─────────────────────────────────────────────────
         _progress("embedding")
-        _retriever().populate(
-            chunks=chunks,
-            metadata={"document_id": paper_id},
-            parent_ids=parent_ids,
-            parent_chunks=parent_chunks,
+        asyncio.run(
+            _retriever().apopulate(
+                chunks=chunks,
+                metadata={"document_id": paper_id},
+                parent_ids=parent_ids,
+                parent_chunks=parent_chunks,
+            )
         )
 
-        # ── 5. persist final state ───────────────────────────────────────────
         with SyncSessionFactory() as session:
             paper = session.get(Paper, paper_uuid)
             if paper is None:
@@ -189,7 +170,6 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
             paper.date_processed = datetime.now(timezone.utc)
             paper.error_message = None
 
-            # Backfill metadata from GROBID only for fields not already set
             for field, value in _backfill_metadata(paper, grobid_raw).items():
                 setattr(paper, field, value)
 

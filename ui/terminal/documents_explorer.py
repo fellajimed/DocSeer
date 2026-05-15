@@ -44,7 +44,7 @@ from confirmation_modal import ConfirmationModal
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
-# Status badge colours (Rich markup)
+
 _STATUS_STYLE: dict[str, str] = {
     "done": "bold green",
     "processing": "bold yellow",
@@ -55,16 +55,12 @@ _STATUS_STYLE: dict[str, str] = {
 
 
 def _paper_label(paper: dict) -> str:
-    """Build a display label for a paper dict (PaperRead)."""
     raw_title = paper.get("title")
     title = raw_title.strip() if isinstance(raw_title, str) else ""
     if not title:
         title = (
             paper.get("source_path") or paper.get("url") or str(paper["id"])
         )
-    # Truncate long titles
-    if len(title) > 55:
-        title = title[:52] + "…"
     status = paper.get("status", "")
     style = _STATUS_STYLE.get(status, "")
     badge = f"[{style}]{status}[/{style}]" if style else status
@@ -72,13 +68,10 @@ def _paper_label(paper: dict) -> str:
 
 
 def _paper_name(paper: dict) -> str:
-    """Return just the title / path / url of a paper (no status badge)."""
     raw_title = paper.get("title")
     name = raw_title.strip() if isinstance(raw_title, str) else ""
     if not name:
         name = paper.get("source_path") or paper.get("url") or str(paper["id"])
-    if len(name) > 60:
-        name = name[:57] + "…"
     return name
 
 
@@ -98,18 +91,12 @@ class DocumentsExplorerWidget(Static):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # paper_id (str UUID) → paper dict
         self._papers: dict[str, dict] = {}
-        # paper_id → display label (for quick search matching)
         self._labels: dict[str, str] = {}
         self._selected_ids: set[str] = set()
-        # task_id -> background poller task
         self._task_watchers: dict[str, asyncio.Task[None]] = {}
         self._requester = AsyncRequester()
-        # full entry list from the last .bib parse, used in the import callback
         self._pending_bib_entries: list[Entry] = []
-
-    # ── composition ───────────────────────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
         with Vertical(id="main_container"):
@@ -143,12 +130,8 @@ class DocumentsExplorerWidget(Static):
             )
             yield Button("Add Paper", id="add_btn", variant="success")
 
-    # ── lifecycle ─────────────────────────────────────────────────────────────
-
     async def on_mount(self) -> None:
         asyncio.create_task(self._load_papers())
-        # Poll every 5 s so statuses (pending → processing → done) update
-        # automatically without requiring the user to manually refresh.
         self.set_interval(5, self._load_papers)
 
     async def on_unmount(self) -> None:
@@ -158,8 +141,6 @@ class DocumentsExplorerWidget(Static):
             *self._task_watchers.values(), return_exceptions=True
         )
         self._task_watchers.clear()
-
-    # ── data fetching ─────────────────────────────────────────────────────────
 
     async def _load_papers(self) -> None:
         try:
@@ -245,8 +226,6 @@ class DocumentsExplorerWidget(Static):
         finally:
             self._task_watchers.pop(task_id, None)
 
-    # ── search ────────────────────────────────────────────────────────────────
-
     @on(Input.Changed, "#search_input")
     def _filter(self, event: Input.Changed) -> None:
         q = event.value.lower()
@@ -259,8 +238,6 @@ class DocumentsExplorerWidget(Static):
                 if q in label.lower()
             ]
         )
-
-    # ── selection tracking ────────────────────────────────────────────────────
 
     @on(Mount)
     def _init_selected_view(self) -> None:
@@ -277,8 +254,6 @@ class DocumentsExplorerWidget(Static):
         selected_now = set(selector.selected)
         new_selected = (self._selected_ids - currently_shown) | selected_now
 
-        # Guard: don't emit if nothing actually changed (suppresses spurious
-        # events fired by clear_options() / add_options() during list rebuild).
         if new_selected == self._selected_ids:
             return
 
@@ -318,8 +293,6 @@ class DocumentsExplorerWidget(Static):
         )
         self._refresh_selected_view()
         self._emit_selection_changed()
-
-    # ── delete flow ───────────────────────────────────────────────────────────
 
     @on(Button.Pressed, "#btn_delete")
     def _delete_selected(self) -> None:
@@ -375,8 +348,6 @@ class DocumentsExplorerWidget(Static):
         if deleted:
             self.notify(f"Deleted {deleted} paper(s).")
 
-    # ── re-ingest flow ────────────────────────────────────────────────────────
-
     @on(Button.Pressed, "#btn_reingest")
     def _reingest_selected(self) -> None:
         if not self._selected_ids:
@@ -418,8 +389,6 @@ class DocumentsExplorerWidget(Static):
         await asyncio.sleep(0.5)
         await self._load_papers()
 
-    # ── add paper ─────────────────────────────────────────────────────────────
-
     @on(Button.Pressed, "#add_btn")
     async def _add_paper(self) -> None:
         raw = self.query_one("#new_item_input", Input).value.strip()
@@ -429,7 +398,6 @@ class DocumentsExplorerWidget(Static):
 
         try:
             if raw.startswith("http://") or raw.startswith("https://"):
-                # Resolve via Zotero Translation Server + queue ingest
                 response = await self._requester.request(
                     method="POST",
                     url=f"{API_URL}/papers/import-url",
@@ -449,7 +417,6 @@ class DocumentsExplorerWidget(Static):
                 await self._load_papers()
 
             elif raw.lower().endswith(".bib"):
-                # BibTeX file — parse locally, let user select entries, then import
                 bib_path = Path(raw).expanduser()
                 if not bib_path.exists():
                     self.notify(
@@ -470,7 +437,6 @@ class DocumentsExplorerWidget(Static):
                 )
 
             else:
-                # Local PDF path — create record and queue ingest
                 response = await self._requester.request(
                     method="POST",
                     url=f"{API_URL}/papers/",
@@ -514,7 +480,6 @@ class DocumentsExplorerWidget(Static):
         metadata = 0
 
         try:
-            # ── selected: queue for ingestion ─────────────────────────────────
             if selected:
                 lib = bibtexparser.Library()
                 for e in selected:
@@ -535,7 +500,6 @@ class DocumentsExplorerWidget(Static):
                     if r.get("task_id"):
                         self._watch_task(r["task_id"])
 
-            # ── not selected: save as metadata-only ───────────────────────────
             if not_selected:
                 lib2 = bibtexparser.Library()
                 for e in not_selected:

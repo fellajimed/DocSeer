@@ -1,6 +1,5 @@
 name: docseer
 
-# All containers are named docseer-<service> so DockerLogsWidget can find them.
 
 x-api-env: &api-env
   DOCSEER_POSTGRES_URL: postgresql+asyncpg://docseer:docseer@postgres:5432/docseer
@@ -14,14 +13,11 @@ x-api-env: &api-env
   DOCSEER_DOCSTORE_PATH: /data/docstore
   DOCSEER_LLM_MODEL: ${DOCSEER_LLM_MODEL:-qwen3.5:4b}
   DOCSEER_EMBEDDING_MODEL: ${DOCSEER_EMBEDDING_MODEL:-nomic-embed-text}
-  # model-puller handles pulling in Docker; disable the in-process fallback
-  # so the API doesn't block on downloads it doesn't need to do.
   DOCSEER_OLLAMA_PULL_ON_STARTUP: "false"
   DOCSEER_RETRIEVER_TOPK: ${DOCSEER_RETRIEVER_TOPK:-5}
 
 services:
 
-  # ── infrastructure ─────────────────────────────────────────────────────────
 
   postgres:
     image: postgres:16-alpine
@@ -68,10 +64,6 @@ services:
     container_name: docseer-ollama
     volumes:
       - ollama_data:/root/.ollama
-    # Port 11434 is intentionally not exposed to the host — all internal traffic
-    # uses Docker DNS (http://ollama:11434).  Exposing it would conflict with a
-    # native Ollama install on the host.  To inspect models manually, use:
-    #   docker compose exec ollama ollama list
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -79,12 +71,6 @@ services:
       retries: 20
     restart: unless-stopped
 
-  # ── model bootstrap ────────────────────────────────────────────────────────
-  # Runs once after the Ollama server is healthy.  Pulls the LLM and embedding
-  # models into the shared ollama_data volume if they are not already present.
-  # Because ollama pull is idempotent, subsequent restarts are instant (the
-  # server just confirms the model is up-to-date and exits).
-  # api and worker wait for this service to complete before starting.
 
   model-puller:
     image: ollama/ollama:0.23.2
@@ -95,7 +81,6 @@ services:
         /bin/ollama pull $${DOCSEER_LLM_MODEL:-llama3.2:3b} &&
         /bin/ollama pull $${DOCSEER_EMBEDDING_MODEL:-nomic-embed-text}
     environment:
-      # Point the CLI at the running server so pulls land in the shared volume
       OLLAMA_HOST: http://ollama:11434
       DOCSEER_LLM_MODEL: ${DOCSEER_LLM_MODEL:-llama3.2:3b}
       DOCSEER_EMBEDDING_MODEL: ${DOCSEER_EMBEDDING_MODEL:-nomic-embed-text}
@@ -120,7 +105,6 @@ services:
       - "1969:1969"
     restart: unless-stopped
 
-  # ── application ────────────────────────────────────────────────────────────
 
   api:
     build:
@@ -164,7 +148,7 @@ services:
       - worker
       - --loglevel=info
       - --queues=ingest
-      - --concurrency=2
+      - --concurrency=4
       - --pool=prefork
     environment:
       <<: *api-env
@@ -200,8 +184,6 @@ services:
       - --loglevel=info
     environment:
       <<: *api-env
-      # Basic auth: set FLOWER_USER / FLOWER_PASSWORD in your .env to protect
-      # the dashboard.  Leave blank to disable auth (fine for local use).
       FLOWER_BASIC_AUTH: ${FLOWER_USER:-}:${FLOWER_PASSWORD:-}
     ports:
       - "5555:5555"
@@ -210,13 +192,12 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:5555/healthcheck"]
-      start_period: 15s
+      start_period: 5s
       interval: 3s
-      timeout: 5s
-      retries: 20
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
-  # ── TUI (run-once via `docker compose run --rm tui`) ─────────────────────
 
   tui:
     build:
@@ -243,10 +224,6 @@ volumes:
   chroma_data:
   docstore_data:
 
-  # ollama_data: bind-mounts ~/.ollama so that any models already installed
-  # on the host are instantly available inside the container — no re-download.
-  # On a fresh machine (no ~/.ollama) the directory is created automatically
-  # by `make up` and model-puller fills it on first boot.
   ollama_data:
     driver: local
     driver_opts:

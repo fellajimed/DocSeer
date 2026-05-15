@@ -205,8 +205,8 @@ class SettingsModal(ModalScreen[list[str] | None]):
         background: $surface;
         border: round $primary;
         padding: 1 2;
-        width: 80%;
-        max-width: 64;
+        width: 95%;
+        max-width: 120;
         height: auto;
     }
 

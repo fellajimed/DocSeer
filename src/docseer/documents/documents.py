@@ -7,8 +7,6 @@ from .utils import get_sitemap_urls
 
 
 class Documents:
-    # NOTE: when using local file, their processing could be longer
-    #       if they are highlighted and have notes
     def __init__(
         self,
         paths: list[str | os.PathLike[str]] | None = None,
@@ -16,7 +14,6 @@ class Documents:
     ) -> None:
         self.cache_path = CACHE_FOLDER / "docs.json"
         if ignore_cache or not self.cache_path.exists():
-            # in case the file does not exist, an empty json file is created
             self.cache_path.write_text("{}", encoding="utf-8")
 
         self.history_path2ids = json.loads(
@@ -29,7 +26,6 @@ class Documents:
                 self.add_source(str(p))
 
     def add_source(self, source: str) -> None:
-        # TODO: replace prints with logger
         if source.endswith("/sitemap.xml"):
             try:
                 urls = get_sitemap_urls(source)

@@ -29,10 +29,8 @@ def cache_source(documents, future):
 
 
 def disable_logs():
-    # set root logger
     logging.basicConfig(level=logging.ERROR)
 
-    # explicitly adjust other loggers
     for logger_name in logging.root.manager.loggerDict:
         logging.getLogger(logger_name).setLevel(logging.ERROR)
 
@@ -112,7 +110,6 @@ def main(
             future.add_done_callback(callback)
 
     if not index:
-        # disable logs for a clean UI
         disable_logs()
         chabot(agent, retriever)
 
@@ -166,7 +163,6 @@ async def amain(
             task.add_done_callback(callback)
 
     if not index:
-        # disable logs for a clean UI
         disable_logs()
         await achabot(agent, retriever)
 

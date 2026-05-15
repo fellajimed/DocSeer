@@ -72,7 +72,6 @@ class PaperUpdate(BaseModel):
 
 class BibtexImportRequest(BaseModel):
     bibtex: str
-    # set True to queue PDF ingestion using the path/URL embedded in bibtex
     trigger_ingest: bool = False
 
 
@@ -82,7 +81,6 @@ class UrlImportRequest(BaseModel):
 
 
 class IngestRequest(BaseModel):
-    # override source_path if not already set on the paper
     source_path: str | None = None
 
 

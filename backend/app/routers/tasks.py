@@ -36,7 +36,6 @@ async def get_task(task_id: str) -> TaskStatus:
     task_result = None
 
     if state == "STARTED":
-        # update_state() meta dict is available in result.info
         info = result.info or {}
         progress = {k: v for k, v in info.items() if k != "exc_message"}
 

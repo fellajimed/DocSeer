@@ -1,11 +1,13 @@
-# ── TUI image ─────────────────────────────────────────────────────────────────
-# Runs the Textual terminal UI.
-# Requires /var/run/docker.sock mounted so DockerLogsWidget can tail
-# container logs via the Docker CLI.
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS build
 
-FROM python:3.12-slim
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+COPY ui/terminal/ ./ui/terminal/
 
-# Docker CLI — needed so the TUI can run `docker logs -f <container>`
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         gnupg \
@@ -22,16 +24,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY --from=build /app/.venv ./.venv
+COPY --from=build /app/ui/terminal ./ui/terminal
+COPY src/docseer/prompts/ ./src/docseer/prompts/
 
-# ── Python deps (TUI subset only — no ML models needed) ───────────────────────
-COPY pyproject.toml uv.lock ./
-RUN pip install --no-cache-dir uv && \
-    uv sync --frozen --no-dev
+ENV PYTHONPATH=/app/ui/terminal:/app/src
+ENV PATH="/app/.venv/bin:$PATH"
 
-# ── TUI source ────────────────────────────────────────────────────────────────
-COPY ui/terminal/ ./ui/terminal/
-
-ENV PYTHONPATH=/app/ui/terminal
-
-# tty is required for Textual; docker-compose sets `tty: true`
 CMD ["uv", "run", "python", "ui/terminal/main.py"]

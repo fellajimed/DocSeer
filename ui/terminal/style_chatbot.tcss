@@ -20,15 +20,11 @@ ChatbotWidget #chat-log {
     scrollbar-size-vertical: 1;
 }
 
-/* ── User bubbles ──────────────────────────────────────────────────────────── */
-
 ChatbotWidget UserChatMessage {
     width: 100%;
     height: auto;
     margin: 0 0 1 0;
 }
-
-/* ── Bot bubbles ───────────────────────────────────────────────────────────── */
 
 ChatbotWidget BotChatMessage {
     width: 80%;
@@ -37,14 +33,12 @@ ChatbotWidget BotChatMessage {
     layout: vertical;
 }
 
-/* Spinner shown while waiting for first token */
 ChatbotWidget BotChatMessage #bot-loading {
     width: 8;
     height: 1;
     margin-left: 1;
 }
 
-/* Thinking collapsible — dim yellow to distinguish from the response */
 ChatbotWidget BotChatMessage #thinking-collapsible {
     border: round $warning 40%;
     padding: 0 1;
@@ -61,13 +55,10 @@ ChatbotWidget BotChatMessage #thinking-content {
     padding: 0 1;
 }
 
-/* Response panel */
 ChatbotWidget BotChatMessage #response-content {
     border: round $secondary;
     padding: 0 1;
 }
-
-/* ── Input textarea (docked to bottom) ──────────────────────────────────────── */
 
 ChatbotWidget #input {
     dock: bottom;
@@ -82,19 +73,6 @@ ChatbotWidget #input {
 ChatbotWidget #input.-macro-mode {
     border: tall $accent;
 }
-
-/* ── macro hint (sits just above the input) ──────────────────────────────────── */
-
-ChatbotWidget #macro-hint {
-    dock: bottom;
-    display: none;
-    height: 1;
-    padding: 0 2;
-    color: $accent;
-    text-style: italic;
-}
-
-/* ── bottom action bar: active filter chips ──────────────────────────────── */
 
 ChatbotWidget #filter-bar {
     dock: bottom;

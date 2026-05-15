@@ -27,7 +27,6 @@ async def delete_paper_embeddings(paper_id: str) -> None:
     settings = get_settings()
 
     def _sync() -> None:
-        # ── ChromaDB ────────────────────────────────────────────────────────
         try:
             client = chromadb.HttpClient(
                 host=settings.chroma_host, port=settings.chroma_port
@@ -40,7 +39,6 @@ async def delete_paper_embeddings(paper_id: str) -> None:
                 "ChromaDB delete failed for paper %s: %s", paper_id, exc
             )
 
-        # ── LocalFileStore (parent chunks) ──────────────────────────────────
         try:
             docstore = LocalFileStoreDB(settings.docstore_path)
             if not docstore.is_empty:

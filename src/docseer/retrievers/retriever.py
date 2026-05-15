@@ -66,7 +66,6 @@ class Retriever(BaseRetriever):
     ) -> list[Document]:
         chunks: list[Document] = self.vector_db.query(query, self.topk)
         if self.docstore is not None and not self.docstore.is_empty:
-            # get unique parent_id
             parent_ids = [
                 p_id
                 for p_id in {
@@ -88,21 +87,18 @@ class Retriever(BaseRetriever):
         self,
         text: str,
         paper_ids: list[str] | None = None,
+        topk: int | None = None,
     ) -> list[Document]:
-        """Async retrieval.
-
-        When *paper_ids* is provided the call bypasses the LangChain
-        ``ainvoke`` chain and hits ChromaDB directly with a ``$in`` filter,
-        so only chunks belonging to those papers are considered.
-        """
         if paper_ids is not None:
-            return await self._fetch(text, paper_ids)
+            return await self._fetch(text, paper_ids, topk=topk)
         return await self.ainvoke(text)
 
-    async def _fetch(self, text: str, paper_ids: list[str]) -> list[Document]:
-        """Direct retrieval path with paper_ids filter — bypasses LangChain."""
+    async def _fetch(
+        self, text: str, paper_ids: list[str], topk: int | None = None
+    ) -> list[Document]:
+        k = topk if topk is not None else self.topk
         chunks: list[Document] = await self.vector_db.aquery(
-            text, self.topk, paper_ids=paper_ids
+            text, k, paper_ids=paper_ids
         )
         if self.docstore is not None and not self.docstore.is_empty:
             parent_ids = [

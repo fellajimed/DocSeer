@@ -80,8 +80,8 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
         background: $surface;
         border: round $primary;
         padding: 1 2;
-        width: 85%;
-        max-width: 80;
+        width: 95%;
+        max-width: 120;
         height: auto;
         max-height: 85%;
     }

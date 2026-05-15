@@ -10,7 +10,6 @@ DocumentsExplorerWidget #main_container {
     padding-bottom: 1;
 }
 
-/* Only the top-level selectionlist/sidebar splitter should be 1fr tall */
 DocumentsExplorerWidget #main_container > Horizontal {
     height: 1fr;
 }
@@ -28,6 +27,12 @@ DocumentsExplorerWidget #search_input {
 DocumentsExplorerWidget #doc_selector {
     height: 1fr;
     border: tall $primary;
+}
+
+DocumentsExplorerWidget #doc_selector .-selected {
+    background: $success 20%;
+    color: $success;
+    text-style: bold;
 }
 
 DocumentsExplorerWidget #sidebar {
@@ -60,10 +65,6 @@ DocumentsExplorerWidget #action_area Horizontal {
     align: center middle;
 }
 
-DocumentsExplorerWidget #action_area Horizontal {
-    width: auto;
-}
-
 DocumentsExplorerWidget #action_area Button {
     height: 3;
     width: auto;
@@ -76,8 +77,6 @@ DocumentsExplorerWidget ContentSwitcher {
     width: auto;
     height: auto;
 }
-
-/* ── add-paper bar ───────────────────────────────────────────────────────── */
 
 DocumentsExplorerWidget #input_bar {
     dock: bottom;

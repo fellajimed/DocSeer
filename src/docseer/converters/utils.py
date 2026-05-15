@@ -22,16 +22,13 @@ def parse_authors(author_string: str) -> str:
         return ""
 
     authors = []
-    # BibTeX separates authors with " and "
     for a in author_string.split(" and "):
         a = a.strip()
 
         if "," in a:
-            # format: Last, First
             last, first = [p.strip() for p in a.split(",", 1)]
             authors.append(f"{first} {last}")
         else:
-            # format: First Last
             authors.append(a)
 
     return "; ".join(authors)
@@ -40,7 +37,6 @@ def parse_authors(author_string: str) -> str:
 def bibtex_to_dict(bibtex: str) -> dict:
     bibtex = bibtex.strip()
 
-    # Extract fields
     fields = re.findall(r"(\w+)\s*=\s*\{([^}]*)\}", bibtex)
     result = {k.lower(): v.strip() for k, v in fields}
 

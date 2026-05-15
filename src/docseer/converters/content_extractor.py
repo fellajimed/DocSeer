@@ -9,17 +9,10 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 class ContentExtractor:
     def __init__(self, do_ocr: bool = False):
         pipeline_options = PdfPipelineOptions()
-        # OCR: off by default — native digital PDFs have selectable text.
-        # Pass do_ocr=True for scanned documents.
         pipeline_options.do_ocr = do_ocr
-        # code detection
         pipeline_options.do_code_enrichment = True
-        # formulas detection
         pipeline_options.do_formula_enrichment = False
 
-        # Docling ≥2.x deprecated `generate_table_images` in favour of
-        # `generate_page_images` + `TableItem.get_image()`.  The field is still
-        # accessed internally by the pipeline, so we suppress the noise here.
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",

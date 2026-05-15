@@ -18,8 +18,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── helpers ───────────────────────────────────────────────────────────────────
-
 
 async def _local_models(base_url: str) -> set[str]:
     """Return the set of model names (tags) already present in Ollama."""
@@ -28,7 +26,6 @@ async def _local_models(base_url: str) -> set[str]:
             resp = await client.get(f"{base_url}/api/tags")
             resp.raise_for_status()
             data = resp.json()
-            # Each entry looks like {"name": "gemma3:4b-it-q4_K_M", ...}
             return {m["name"] for m in data.get("models", [])}
         except Exception as exc:
             logger.warning("Could not list local Ollama models: %s", exc)
@@ -70,7 +67,6 @@ async def _pull_model(model: str, base_url: str) -> None:
 
                 if total and completed:
                     pct = int(completed / total * 100)
-                    # Log at most once per 10 % step
                     if pct // 10 > last_pct // 10:
                         logger.info(
                             "  pulling '%s' — %s %d%%", model, status, pct
@@ -80,9 +76,6 @@ async def _pull_model(model: str, base_url: str) -> None:
                     logger.info("  pulling '%s' — %s", model, status)
 
     logger.info("Model '%s' is ready.", model)
-
-
-# ── public API ────────────────────────────────────────────────────────────────
 
 
 async def ensure_models(models: list[str], base_url: str) -> None:

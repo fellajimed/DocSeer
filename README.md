@@ -204,6 +204,7 @@ Set `DOCSEER_OLLAMA_PULL_ON_STARTUP=false` if you pre-pull models yourself or wo
 | `Ctrl+S` | DocSeer Settings (LLM model, embedding model, theme) |
 | `Ctrl+P` | Textual Command Palette |
 | `Alt+P` | Filter Papers (open paper picker) |
+| `Alt+M` | Open Macro Selector |
 
 **Chat tab:**
 
@@ -211,7 +212,20 @@ Set `DOCSEER_OLLAMA_PULL_ON_STARTUP=false` if you pre-pull models yourself or wo
 |---|---|
 | `Ctrl+J` / `Ctrl+M` / `Ctrl+Enter` | Send message |
 | `Tab` | Auto-complete `/macro` name |
-| `/papers` + `Ctrl+J` | Open paper filter picker |
+| `<char>` after `/` | Opens Macro Selector modal |
+
+**Available macros:**
+
+| Macro | Action |
+|---|---|
+| `/papers` | Open paper filter picker |
+| `/summarize` | Structured summary of selected papers |
+| `/extract` | Extract contributions, methodology, results |
+| `/synthesize` | Cross-paper synthesis and insights |
+| `/compare` | Side-by-side comparison of papers |
+| `/critique` | Critical analysis of papers |
+
+Type `/<char>` in the chat input to open the Macro Selector modal, or type the full macro name and press `Enter`.
 
 **Papers tab:**
 
@@ -253,6 +267,98 @@ The full interactive documentation is available at **http://localhost:8000/docs*
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/tasks/{task_id}` | Poll a Celery task (PENDING / STARTED / SUCCESS / FAILURE) |
+
+---
+
+## Pipeline
+
+### Ingestion
+
+```
+  PDF / URL
+      │
+      ▼
+  ┌─────────────┐
+  │ get_file_bytes()│
+  └──────┬──────┘
+         │  doc_bytes
+         ▼
+  ┌──────────────┐     ┌──────────────────┐
+  │   GROBID     │     │     Docling      │
+  │  (metadata)  │     │ (PDF → Markdown) │
+  └──────┬───────┘     └────────┬─────────┘
+         │                      │
+         ▼                      ▼
+     metadata             page_content
+         │                      │
+         └──────────┬───────────┘
+                    ▼
+          ┌─────────────────┐
+          │ MarkdownHeader  │
+          │ TextSplitter    │  parent chunks (by heading)
+          └────────┬────────┘
+                   │
+          ┌─────────────────┐
+          │RecursiveCharText│  child chunks (~800 chars, 80 overlap)
+          │ TextSplitter    │
+          └────────┬────────┘
+                   │
+         ┌─────────┴──────────┐
+         ▼                    ▼
+  ┌──────────────┐   ┌────────────────┐
+  │   Ollama     │   │LocalFileStore  │
+  │  nomic-embed │   │(parent chunks) │
+  └──────┬───────┘   └────────────────┘
+         │
+         ▼
+  ┌──────────────┐
+  │   ChromaDB   │   child chunk vectors + metadata
+  └──────────────┘
+```
+
+### Retrieval
+
+```
+  User query
+      │
+      ▼
+  ┌──────────────┐
+  │ Ollama embed │   embed query → vector
+  └──────┬───────┘
+         │
+         ▼
+  ┌──────────────┐
+  │   ChromaDB   │   cosine similarity search (optionally filtered by paper_ids)
+  └──────┬───────┘
+         │  top-k child chunks (contain parent_id references)
+         ▼
+  ┌──────────────┐
+  │LocalFileStore│   resolve child → parent chunk (full section context)
+  └──────┬───────┘
+         │  parent chunk text
+         ▼
+  ┌──────────────┐
+  │  Ollama LLM  │   qwen3.5:4b + retrieved context → answer
+  └──────┬───────┘
+         │  SSE stream (thinking + response tokens)
+         ▼
+       TUI chat
+```
+
+For the retrieval step, `paper_ids` can optionally be passed to restrict the search to specific papers. This is how the paper filter in the Chat tab works.
+
+### Chunking strategy
+
+```
+  Parent chunk  ───→  Child chunk   ───→  Embedding in ChromaDB
+  (heading section)     (800 chars overlap)
+       │
+       └── stored in LocalFileStore
+       │
+       └── 120 char overlap carried from previous parent for continuity
+```
+
+During retrieval, child chunks are matched by similarity, then resolved to their parent for richer context.
 
 ---
 

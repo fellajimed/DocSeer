@@ -33,7 +33,7 @@ class ConfirmationModal(ModalScreen[bool]):
         border: round $primary;
         padding: 1 2;
         width: auto;
-        max-width: 60;
+        max-width: 96;
         height: auto;
     }
 

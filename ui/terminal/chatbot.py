@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from importlib.resources import files
 from typing import Callable, Optional
 
 from rich.align import Align
@@ -43,80 +44,54 @@ from utils import AsyncRequester
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
-# ── macro registry ────────────────────────────────────────────────────────────
-# Maps macro name → short description.  Add entries here to register new macros
-# without touching SubmitTextArea or ChatbotWidget.
 
 MACROS: dict[str, str] = {
     "papers": "Filter chat to specific documents",
+    "summarize": "Summarize selected papers",
+    "extract": "Extract contributions from selected papers",
+    "synthesize": "Synthesize insights across selected papers",
+    "compare": "Compare selected papers side by side",
+    "critique": "Critically analyze selected papers",
 }
-
-
-# ── input widget ─────────────────────────────────────────────────────────────
 
 
 class SubmitTextArea(TextArea):
     """TextArea that submits on Ctrl+j / Ctrl+m / Ctrl+Enter.
 
     When the content matches a known /macro_name command, submitting posts
-    MacroTriggered instead of the usual Submitted.  While typing a `/…`
-    prefix the widget enters *macro mode*: its border shifts to the accent
-    colour and a MacroModeChanged event is fired so the parent can show a
-    contextual hint.
-
-    To add a new macro, add an entry to the module-level ``MACROS`` dict.
-    No changes to this class are needed.
+    MacroTriggered instead of the usual Submitted.
     """
 
-    # ── nested messages ───────────────────────────────────────────────────────
-
     class MacroTriggered(Message):
-        """Posted when the user submits a known /macro command."""
-
         def __init__(self, name: str, args: str = "") -> None:
             super().__init__()
             self.name = name
             self.args = args
-
-    class MacroModeChanged(Message):
-        """Posted when the input enters or exits /macro typing mode."""
-
-        def __init__(self, active: bool, partial: str = "") -> None:
-            super().__init__()
-            self.active = active
-            self.partial = partial  # text typed after "/" so far (lowercased)
 
     class Submitted(TextArea.Changed):
         @property
         def value(self) -> str:
             return self.text_area
 
-    # ── class-level state ─────────────────────────────────────────────────────
-
     is_worker_finished: Optional[Callable[[], bool]] = None
 
-    # ── event handlers ────────────────────────────────────────────────────────
-
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Track /macro prefix while typing and update visual state."""
-        # Filter out our own Submitted subclass — only react to real edits.
         if type(event) is not TextArea.Changed:
             return
 
         text = self.text.strip()
         if text.startswith("/"):
             self.add_class("-macro-mode")
-            parts = text[1:].split()
-            partial = parts[0].lower() if parts else ""
-            self.post_message(
-                self.MacroModeChanged(active=True, partial=partial)
-            )
+            if len(text) > 1:
+                self.text = ""
+                self.remove_class("-macro-mode")
+                self._macro_index = 0
+                self.post_message(self.MacroTriggered("__select__", text[1:]))
         else:
             self.remove_class("-macro-mode")
-            self.post_message(self.MacroModeChanged(active=False))
+            self._macro_index = 0
 
     async def _on_key(self, event: Key) -> None:
-        # ── Tab: auto-complete macro name ─────────────────────────────────────
         if event.key == "tab":
             text = self.text.strip()
             if text.startswith("/"):
@@ -134,6 +109,33 @@ class SubmitTextArea(TextArea):
                     return
             return
 
+        text_stripped = self.text.strip()
+        if text_stripped.startswith("/"):
+            if event.key == "enter":
+                event.prevent_default()
+                event.stop()
+                text = text_stripped
+                self.text = ""
+                self.remove_class("-macro-mode")
+                parts = text[1:].split(None, 1)
+                macro_name = parts[0].lower() if parts else ""
+                if macro_name in MACROS:
+                    if (
+                        self.is_worker_finished
+                        and not self.is_worker_finished()
+                    ):
+                        self.notify(
+                            "A macro is already running.", severity="warning"
+                        )
+                        return
+                    macro_args = parts[1] if len(parts) > 1 else ""
+                    self.post_message(
+                        self.MacroTriggered(macro_name, macro_args)
+                    )
+                    return
+                self.post_message(self.Submitted(text))
+                return
+
         if event.key not in ("ctrl+j", "ctrl+m", "ctrl+enter"):
             return
 
@@ -146,7 +148,6 @@ class SubmitTextArea(TextArea):
         event.prevent_default()
         event.stop()
 
-        # ── macro dispatch ────────────────────────────────────────────────────
         if text.startswith("/"):
             parts = text[1:].split(None, 1)
             macro_name = parts[0].lower() if parts else ""
@@ -156,12 +157,8 @@ class SubmitTextArea(TextArea):
                 self.post_message(self.MacroTriggered(macro_name, macro_args))
                 return
 
-        # ── regular submission ────────────────────────────────────────────────
         self.post_message(self.Submitted(self.text))
         self.text = ""
-
-
-# ── message bubbles ───────────────────────────────────────────────────────────
 
 
 class UserChatMessage(Static):
@@ -210,8 +207,6 @@ class BotChatMessage(Static):
         self._thinking_done = False
         self._flush_think_task: asyncio.Task[None] | None = None
 
-    # ── composition ───────────────────────────────────────────────────────────
-
     def compose(self) -> ComposeResult:
         yield LoadingIndicator(id="bot-loading")
         with Collapsible(
@@ -226,8 +221,6 @@ class BotChatMessage(Static):
         self.query_one("#thinking-collapsible").display = False
         self.query_one("#response-content").display = False
         self.query_one("#thinking-content").styles.text_style = "dim italic"
-
-    # ── internal helpers ──────────────────────────────────────────────────────
 
     def _thinking_word_count(self) -> int:
         return len(self._thinking.split()) if self._thinking.strip() else 0
@@ -255,11 +248,8 @@ class BotChatMessage(Static):
         content_widget.update(Markdown(self._thinking))
         self._update_collapsible_title(done=False)
 
-    # ── streaming helpers ────────────────────────────────────────────────────
-
     def append_thinking(self, text: str) -> None:
         """Buffer a thinking token chunk; flush every 30 ms."""
-        # Hide spinner on first content
         if (
             not self._thinking
             and not self._thinking_buffer
@@ -278,7 +268,6 @@ class BotChatMessage(Static):
 
     def append_response(self, text: str) -> None:
         """Append a response token chunk."""
-        # Hide spinner on first content
         if (
             not self._thinking
             and not self._thinking_buffer
@@ -286,7 +275,6 @@ class BotChatMessage(Static):
         ):
             self.query_one("#bot-loading").display = False
 
-        # Collapse the thinking panel the first time a response arrives
         if not self._thinking_done and (
             self._thinking or self._thinking_buffer
         ):
@@ -298,19 +286,16 @@ class BotChatMessage(Static):
         self._response += text
         response_widget = self.query_one("#response-content", Static)
         response_widget.display = True
-        # Re-parse Markdown on every 30 ms flush (batched in _flush_response_buffer).
         response_widget.update(Markdown(self._response))
 
     def mark_done(self, cancelled: bool = False) -> None:
         """Called when the SSE stream ends; ensure final state is correct."""
-        # Flush any remaining thinking buffer synchronously
         if self._thinking_buffer:
             self._thinking += self._thinking_buffer
             self._thinking_buffer = ""
             content_widget = self.query_one("#thinking-content", Static)
             content_widget.update(Markdown(self._thinking))
 
-        # Finalise collapsible title
         if self._thinking or self._thinking_done:
             self._update_collapsible_title(done=True)
 
@@ -319,14 +304,11 @@ class BotChatMessage(Static):
         response_widget.display = True
 
         if self._response:
-            # Re-render in case the last flush left incomplete markdown syntax.
             response_widget.update(Markdown(self._response))
         elif cancelled:
             response_widget.update(Text("Generation stopped.", style="dim"))
         else:
             response_widget.update("_(no response)_")
-            # If thinking arrived but no response, keep the reasoning panel
-            # open so the user can at least read what the model thought.
             if self._thinking:
                 collapsible = self.query_one(
                     "#thinking-collapsible", Collapsible
@@ -340,9 +322,6 @@ class BotChatMessage(Static):
         response_widget.update(Text(f"Error: {message}", style="red"))
 
 
-# ── scroll container ──────────────────────────────────────────────────────────
-
-
 class ChatContainer(VerticalScroll):
     autoscroll = True
 
@@ -354,13 +333,8 @@ class ChatContainer(VerticalScroll):
     @on(MouseScrollDown)
     def _on_scroll_down(self) -> None:
         """Re-enable autoscroll when the user scrolls back to the bottom."""
-        # max_scroll_y is the furthest the container can scroll.  A small
-        # threshold (3 virtual pixels) absorbs sub-pixel rounding differences.
         if self.max_scroll_y - self.scroll_y <= 3:
             self.autoscroll = True
-
-
-# ── main widget ───────────────────────────────────────────────────────────────
 
 
 class ChatbotWidget(Static):
@@ -379,19 +353,19 @@ class ChatbotWidget(Static):
         self._requester = AsyncRequester()
         self._response_buffer = ""
         self._flush_task: asyncio.Task[None] | None = None
+        self._pending_macro: tuple[str, str] | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="chat-container"):
             with ChatContainer(id="chat-log") as vs:
                 vs.can_focus = False
-        yield SubmitTextArea(
-            id="input",
-            placeholder="Write a query… (Ctrl+j to send)",
-        )
-        yield Static("", id="macro-hint")
         with Horizontal(id="filter-bar"):
             yield Static("", id="filter-chips")
             yield Button("✕ Clear", id="btn-clear-filter", variant="warning")
+        yield SubmitTextArea(
+            id="input",
+            placeholder="Ask a question… (/summarize, /extract, /synthesize, /papers)",
+        )
 
     async def on_mount(self) -> None:
         self._chat_log = self.query_one("#chat-log", ChatContainer)
@@ -405,48 +379,133 @@ class ChatbotWidget(Static):
     async def on_submit_text_area_submitted(
         self, event: SubmitTextArea.Submitted
     ) -> None:
+        if self._is_macro_running():
+            return
         user_text = event.value.strip()
         if not user_text:
             return
         await self._submit_query(user_text)
 
-    # ── macro handling ────────────────────────────────────────────────────────
-
-    @on(SubmitTextArea.MacroModeChanged)
-    def _on_macro_mode_changed(
-        self, event: SubmitTextArea.MacroModeChanged
-    ) -> None:
-        """Show or hide the macro hint label as the user types."""
-        hint = self.query_one("#macro-hint", Static)
-        if event.active:
-            matches = [
-                f"/{name}"
-                for name in MACROS
-                if not event.partial or name.startswith(event.partial)
-            ]
-            if len(matches) == 1:
-                hint.update(f"[dim]Tab → {matches[0]}[/dim]")
-                hint.display = True
-            elif matches:
-                hint.update("  ".join(matches))
-                hint.display = True
-            else:
-                hint.display = False
-            return
-        hint.display = False
+    def _is_macro_running(self) -> bool:
+        return (
+            self.agent_worker is not None and not self.agent_worker.is_finished
+        )
 
     @on(SubmitTextArea.MacroTriggered)
     async def _on_macro_triggered(
         self, event: SubmitTextArea.MacroTriggered
     ) -> None:
-        """Route a submitted /macro command to its handler."""
+        if self._is_macro_running():
+            self.notify(
+                "A macro is already running. Wait for it to finish.",
+                severity="warning",
+            )
+            return
         if event.name == "papers":
             await self._macro_papers(event.args)
+        elif event.name in (
+            "summarize",
+            "extract",
+            "synthesize",
+            "compare",
+            "critique",
+        ):
+            self._pending_macro = (event.name, event.args)
+            await self._macro_papers(event.args)
+        elif event.name == "__select__":
+            from macro_selector import MacroSelectorModal
+
+            self.app.push_screen(
+                MacroSelectorModal(event.args),
+                self._on_macro_selector_result,
+            )
         else:
             self.notify(f"Unknown macro: /{event.name}", severity="warning")
 
-    async def _macro_papers(self, args: str) -> None:
-        """Handle the /papers macro — opens the paper-filter picker."""
+    def _on_macro_selector_result(self, macro_name: str | None) -> None:
+        if macro_name is None:
+            return
+        if self._is_macro_running():
+            self.notify(
+                "A macro is already running. Wait for it to finish.",
+                severity="warning",
+            )
+            return
+
+        self._pending_macro = (macro_name, "")
+
+        self._pending_macro = (macro_name, "")
+        from documents_explorer import DocumentsExplorerWidget
+        from paper_picker import PaperPickerModal
+
+        try:
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            active_ids = list(docs._selected_ids)
+        except Exception:
+            active_ids = []
+        self.app.push_screen(
+            PaperPickerModal(active_ids),
+            self._on_paper_filter_result,
+        )
+
+    async def _macro_switch_model(self, model_name: str) -> None:
+        try:
+            resp = await self._requester.request(
+                method="POST",
+                url=f"{API_URL}/settings/models",
+                stream=False,
+                json={"llm_model": model_name},
+            )
+            resp.raise_for_status()
+            changes = resp.json()
+            self.notify(
+                ", ".join(changes)
+                if changes
+                else f"Model {model_name} already active."
+            )
+        except Exception as exc:
+            self.notify(f"Failed to switch model: {exc}", severity="error")
+
+    async def _macro_switch_embedder(self, model_name: str) -> None:
+        self.notify(
+            "Changing embedding model. This may cause incompatibility with existing vectors.",
+            severity="warning",
+        )
+        try:
+            resp = await self._requester.request(
+                method="POST",
+                url=f"{API_URL}/settings/models",
+                stream=False,
+                json={"embedding_model": model_name},
+            )
+            resp.raise_for_status()
+            changes = resp.json()
+            self.notify(
+                ", ".join(changes)
+                if changes
+                else f"Embedder {model_name} already active."
+            )
+        except Exception as exc:
+            self.notify(f"Failed to switch embedder: {exc}", severity="error")
+
+    def _on_macro_selector_result(self, macro_name: str | None) -> None:
+        if macro_name is None:
+            return
+        self._pending_macro = (macro_name, "")
+        from documents_explorer import DocumentsExplorerWidget
+        from paper_picker import PaperPickerModal
+
+        try:
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            active_ids = list(docs._selected_ids)
+        except Exception:
+            active_ids = []
+        self.app.push_screen(
+            PaperPickerModal(active_ids),
+            self._on_paper_filter_result,
+        )
+
+    def _macro_papers(self, args: str) -> None:
         from documents_explorer import DocumentsExplorerWidget
         from paper_picker import PaperPickerModal
 
@@ -462,23 +521,153 @@ class ChatbotWidget(Static):
     def _on_paper_filter_result(
         self, result: list[tuple[str, str]] | None
     ) -> None:
-        """Callback from PaperPickerModal.
-
-        None   → cancelled; leave selection as-is
-        []     → clear selection (query all papers)
-        [...]  → new selection
-        """
         if result is None:
+            self._pending_macro = None
             return
+
         from documents_explorer import DocumentsExplorerWidget
+
+        pending = self._pending_macro
+        if pending:
+            self._pending_macro = None
+            action, args = pending
+            self._run_macro_sequence(action, args, result)
+            return
 
         try:
             docs = self.app.query_one(DocumentsExplorerWidget)
             docs.set_selection({pid for pid, _ in result})
         except Exception:
             pass
-        # Filter bar display is updated via SelectionChanged → MainApp →
-        # update_paper_display(); no direct update needed here.
+
+    def _run_macro_sequence(
+        self, action: str, args: str, papers: list[tuple[str, str]]
+    ) -> None:
+        self.post_message(self.GenerationStarted())
+        self.agent_worker = self.run_worker(
+            self._stream_macro_sequence(action, args, papers)
+        )
+
+    async def _stream_macro_sequence(
+        self, action: str, args: str, papers: list[tuple[str, str]]
+    ) -> None:
+        prompts_dir = files("docseer.prompts")
+        prompt_file = prompts_dir / f"{action}.md"
+        try:
+            base_prompt = prompt_file.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            self.notify(
+                f"Prompt template not found: {prompt_file}", severity="error"
+            )
+            self.post_message(self.GenerationStopped())
+            return
+
+        if args:
+            base_prompt += f"\n\nFocus on: {args}"
+
+        name = f"/{action}"
+
+        from documents_explorer import DocumentsExplorerWidget, _paper_name
+
+        try:
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            paper_titles = [
+                _paper_name(docs._papers.get(pid, {})) or pid[:8]
+                for pid, _ in papers
+            ]
+        except Exception:
+            paper_titles = [pid[:8] for pid, _ in papers]
+
+        n = len(papers)
+        titles_str = "\n".join(f"  {t}" for t in paper_titles)
+        label = f"{name} — {n} paper{'s' if n != 1 else ''}\n{titles_str}"
+        self._user_bubble = UserChatMessage(label)
+        await self._chat_log.mount(self._user_bubble)
+        self.call_after_refresh(self._chat_log.scroll_end)
+
+        try:
+            for pid, _ in papers:
+                try:
+                    docs = self.app.query_one(DocumentsExplorerWidget)
+                    docs.set_selection({pid})
+                    paper = docs._papers.get(pid, {})
+                    title = _paper_name(paper)
+                    authors_raw = paper.get("authors") or []
+                    if isinstance(authors_raw, list):
+                        authors = ", ".join(authors_raw)
+                    else:
+                        authors = str(authors_raw)
+                except Exception:
+                    title = pid[:8]
+                    authors = ""
+
+                meta_header = (
+                    f"Title: {title}\nAuthors: {authors}\n\n" if title else ""
+                )
+                query = meta_header + base_prompt
+
+                self._bot_bubble = BotChatMessage()
+                self._response_buffer = ""
+                self._flush_task = None
+                await self._chat_log.mount(self._bot_bubble)
+                self._chat_log.autoscroll = True
+
+                paper_ids = [pid]
+                try:
+                    async with await self._requester.request(
+                        method="POST",
+                        url=f"{API_URL}/chat/stream",
+                        stream=True,
+                        json={
+                            "query": query,
+                            "think_mode": self.think_mode,
+                            "paper_ids": paper_ids,
+                            "topk": 100,
+                        },
+                    ) as response:
+                        async for raw_line in response.aiter_lines():
+                            if not raw_line.startswith("data: "):
+                                continue
+                            try:
+                                event = json.loads(raw_line[6:])
+                            except json.JSONDecodeError:
+                                continue
+                            event_type = event.get("type", "")
+                            content = event.get("content", "")
+                            if event_type == "thinking":
+                                self._bot_bubble.append_thinking(content)
+                            elif event_type == "response":
+                                self._response_buffer += content
+                                if (
+                                    self._flush_task is None
+                                    or self._flush_task.done()
+                                ):
+                                    self._flush_task = asyncio.create_task(
+                                        self._flush_response_buffer(),
+                                    )
+                            elif event_type == "done":
+                                await self._flush_pending_response()
+                                self._bot_bubble.mark_done()
+                                break
+                            elif event_type == "error":
+                                await self._flush_pending_response()
+                                self._bot_bubble.set_error(content)
+                                break
+                            if self._chat_log.autoscroll:
+                                self.call_after_refresh(
+                                    self._chat_log.scroll_end
+                                )
+                except asyncio.CancelledError:
+                    await self._flush_pending_response()
+                    if self._bot_bubble:
+                        self._bot_bubble.mark_done(cancelled=True)
+                    raise
+                except Exception as exc:
+                    await self._flush_pending_response()
+                    if self._bot_bubble:
+                        self._bot_bubble.set_error(str(exc))
+        finally:
+            self.post_message(self.GenerationStopped())
 
     def update_paper_display(self, selected: list[tuple[str, str]]) -> None:
         """Update the filter bar chips to reflect the current paper selection.
@@ -515,12 +704,17 @@ class ChatbotWidget(Static):
         self.post_message(self.GenerationStarted())
         self.agent_worker = self.run_worker(self._stream(user_text))
 
+    async def _submit_analysis(self, label: str, prompt: str) -> None:
+        self._user_bubble = UserChatMessage(label)
+        await self._chat_log.mount(self._user_bubble, after=self._bot_bubble)
+        self.call_after_refresh(self._chat_log.scroll_end)
+        self.post_message(self.GenerationStarted())
+        self.agent_worker = self.run_worker(self._stream(prompt))
+
     def cancel_generation(self) -> None:
         """Cancel the active streaming worker (called from MainApp's Stop button)."""
         if self.agent_worker and not self.agent_worker.is_finished:
             self.agent_worker.cancel()
-
-    # ── streaming ─────────────────────────────────────────────────────────────
 
     async def _stream(self, prompt: str) -> None:
         self._bot_bubble = BotChatMessage()
@@ -531,8 +725,6 @@ class ChatbotWidget(Static):
         self._chat_log.autoscroll = True
         self.call_after_refresh(self._chat_log.scroll_end)
 
-        # Read the current paper selection from DocumentsExplorerWidget.
-        # None = no filter (query all papers); list = restrict to these IDs.
         paper_ids: list[str] | None = None
         try:
             from documents_explorer import DocumentsExplorerWidget
@@ -617,8 +809,6 @@ class ChatbotWidget(Static):
             chunk = self._response_buffer
             self._response_buffer = ""
             self._bot_bubble.append_response(chunk)
-
-    # ── public API called by MainApp ─────────────────────────────────────────
 
     def set_think_mode(self, enabled: bool) -> None:
         self.think_mode = enabled

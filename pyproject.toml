@@ -16,11 +16,8 @@ dependencies = [
     "langchain-community>=0.3.27",
     "langchain-text-splitters>=1.0.0",
     "langchain-classic>=0.0.1",
-    "sentence-transformers>=4.1.0",
-    "transformers>=4.52.1",
     "flashrank>=0.2.10",
     "docling>=2.46.0",
-    "PyMuPDF>=1.25.5",
     "chromadb>=0.6.0",
     "fastapi>=0.124.2",
     "uvicorn[standard]>=0.34.0",
@@ -37,11 +34,7 @@ dependencies = [
     "bibtexparser>=2.0.0b7",
     "rich>=14.0.0",
     "python-dotenv>=1.2.1",
-    "faiss-cpu>=1.11.0",
-    "hf-xet>=1.1.2",
-    "pydantic-ai>=0.8.1",
     "textual>=6.10.0",
-    "httpx>=0.28.0",
 ]
 
 [build-system]

@@ -31,7 +31,7 @@ class ChromaVectorDB:
         self,
         model_embeddings,
         batch_size: int = 128,
-        path_db=None,  # kept for backward compat, unused
+        path_db=None,
         chroma_host: str = "localhost",
         chroma_port: int = 8010,
     ):
@@ -42,8 +42,6 @@ class ChromaVectorDB:
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME
         )
-
-    # ------------------------------------------------------------------ sync
 
     def add(self, chunks: list[Document], metadata: dict) -> None:
         for batch in batched(chunks, self.batch_size):
@@ -68,8 +66,6 @@ class ChromaVectorDB:
             kwargs["where"] = {"document_id": {"$in": paper_ids}}
         results = self.collection.query(**kwargs)
         return _chroma_results_to_documents(results)
-
-    # ----------------------------------------------------------------- async
 
     async def aadd(self, chunks: list[Document], metadata: dict) -> None:
         tasks = [

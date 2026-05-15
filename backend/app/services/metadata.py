@@ -15,8 +15,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────── internal helpers
-
 
 def _clean(value: Any) -> str | None:
     if value is None:
@@ -53,9 +51,6 @@ def _entry_to_raw(entry) -> str:
     return bibtexparser.write_string(lib)
 
 
-# ─────────────────────────────────────────── public API
-
-
 def parse_bibtex(bibtex_str: str) -> list[dict[str, Any]]:
     """
     Parse a BibTeX string exported from Zotero into a list of paper dicts
@@ -67,22 +62,16 @@ def parse_bibtex(bibtex_str: str) -> list[dict[str, Any]]:
     for entry in library.entries:
         fields: dict[str, Any] = {f.key: f.value for f in entry.fields}
 
-        # Prefer the local file path (Zotero "file" field, format
-        # "Description:path:mime") over the URL for source_path so that
-        # ingestion reads a local copy when one is available.
         raw_file: str = str(fields.get("file", "") or "")
         source_path: str | None = None
         if raw_file:
             parts = raw_file.split(":")
-            # common Zotero format: ":path:application/pdf"
             if len(parts) >= 2:
                 candidate = parts[1].strip()
                 source_path = candidate or None
             else:
                 source_path = _clean(raw_file)
 
-        # Fall back to the url field so the worker can fetch the PDF remotely
-        # when no local file is embedded in the BibTeX entry.
         if not source_path:
             source_path = _clean(fields.get("url"))
 
@@ -193,7 +182,6 @@ async def fetch_metadata_from_url(
                 return None
 
             if resp.status_code == 300:
-                # Multiple choices — pick the first key automatically
                 payload = resp.json()
                 items_map: dict = (
                     payload.get("items", {})

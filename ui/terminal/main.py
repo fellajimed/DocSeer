@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import signal
@@ -36,6 +35,7 @@ class MainApp(App):
         Binding("ctrl+s", "docseer_settings", "Settings", priority=True),
         Binding("ctrl+p", "command_palette", "Textual", priority=True),
         Binding("alt+p", "pick_papers", "Filter Papers", priority=True),
+        Binding("alt+m", "open_macros", "Macros", priority=True),
     ]
     TITLE = "DocSeer"
 
@@ -71,17 +71,13 @@ class MainApp(App):
 
     def on_mount(self) -> None:
         self.query_one("#btn_stop").display = False
-        # "Papers" is only relevant on the Chat tab
         self.query_one("#btn_papers").display = True
-        # Restore the last saved theme (best-effort)
         try:
             saved = THEME_FILE.read_text().strip()
             if saved and saved in self.available_themes:
                 self.theme = saved
         except Exception:
             pass
-
-    # ── paper selection sync ──────────────────────────────────────────────────
 
     @on(DocumentsExplorerWidget.SelectionChanged)
     def _on_papers_selection_changed(
@@ -94,8 +90,6 @@ class MainApp(App):
             )
         except Exception:
             pass
-
-    # ── tab switching ─────────────────────────────────────────────────────────
 
     def action_go_chat(self) -> None:
         if self.query_one(ContentSwitcher).current == "tab_chat":
@@ -139,8 +133,6 @@ class MainApp(App):
         else:
             self.set_focus(None)
 
-    # ── papers picker ─────────────────────────────────────────────────────────
-
     def action_pick_papers(self) -> None:
         if self.query_one(ContentSwitcher).current != "tab_chat":
             return
@@ -148,15 +140,39 @@ class MainApp(App):
 
         if isinstance(self.screen, PaperPickerModal):
             return
-        asyncio.create_task(
-            self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
-        )
+        self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
 
     @on(Button.Pressed, "#btn_papers")
-    async def _open_papers_picker(self) -> None:
-        await self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
+    def _open_papers_picker(self) -> None:
+        self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
 
-    # ── stop generation ───────────────────────────────────────────────────────
+    def action_open_macros(self) -> None:
+        from macro_selector import MacroSelectorModal
+
+        if isinstance(self.screen, MacroSelectorModal):
+            return
+        self.push_screen(
+            MacroSelectorModal(),
+            self._on_macro_selected,
+        )
+
+    def _on_macro_selected(self, macro_name: str | None) -> None:
+        if macro_name is None:
+            return
+        try:
+            chatbot = self.query_one("#tab_chat", ChatbotWidget)
+            chatbot._pending_macro = (macro_name, "")
+            from paper_picker import PaperPickerModal
+            from documents_explorer import DocumentsExplorerWidget
+
+            docs = self.app.query_one(DocumentsExplorerWidget)
+            active_ids = list(docs._selected_ids)
+            self.app.push_screen(
+                PaperPickerModal(active_ids),
+                chatbot._on_paper_filter_result,
+            )
+        except Exception as exc:
+            self.notify(f"Macro error: {exc}", severity="error")
 
     @on(Button.Pressed, "#btn_stop")
     def _stop_generation(self) -> None:
@@ -169,8 +185,6 @@ class MainApp(App):
     @on(ChatbotWidget.GenerationStopped)
     def _on_generation_stopped(self) -> None:
         self.query_one("#btn_stop").display = False
-
-    # ── think mode toggle ─────────────────────────────────────────────────────
 
     @on(Button.Pressed, "#btn_think")
     def _toggle_think(self, event: Button.Pressed) -> None:
@@ -188,8 +202,6 @@ class MainApp(App):
         self.notify(f"Thinking mode {'enabled' if new_mode else 'disabled'}.")
         self._set_focus()
 
-    # ── settings modal ────────────────────────────────────────────────────────
-
     @on(Button.Pressed, "#btn_settings")
     def _open_settings(self, event: Button.Pressed) -> None:
         self.push_screen(SettingsModal(), self._on_settings_closed)
@@ -205,8 +217,6 @@ class MainApp(App):
                 severity="information",
             )
         self._set_focus()
-
-    # ── chat controls ─────────────────────────────────────────────────────────
 
     @on(Button.Pressed, "#btn_clear_chat")
     def _clear_chat(self, event: Button.Pressed) -> None:
@@ -229,8 +239,6 @@ class MainApp(App):
                 f"Could not clear server history: {exc}", severity="error"
             )
         self._set_focus()
-
-    # ── quit ──────────────────────────────────────────────────────────────────
 
     async def action_quit(self) -> None:
         self.notify("Stopping all services…", severity="warning")
@@ -264,16 +272,10 @@ def _stop_services() -> None:
 
 
 if __name__ == "__main__":
-    # Configure root logger at DEBUG so the DockerLogsWidget handler receives
-    # all records.  No StreamHandler is added here — output goes only to the
-    # RichLog widget once the app is running.
     logging.basicConfig(level=logging.DEBUG, handlers=[])
 
     app = MainApp()
 
-    # Docker sends SIGTERM when the container is stopped (e.g. `docker stop`,
-    # `docker compose down`).  Tell Textual to exit cleanly instead of letting
-    # the process be killed mid-render.
     def _handle_sigterm(sig, frame):
         app.exit()
 
@@ -282,6 +284,6 @@ if __name__ == "__main__":
     try:
         app.run()
     except KeyboardInterrupt:
-        pass  # Ctrl+C before TUI was fully up; fall through to finally
+        pass
     finally:
         _stop_services()

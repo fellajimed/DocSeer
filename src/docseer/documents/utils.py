@@ -30,21 +30,17 @@ def get_sitemap_urls(sitemap_url: str) -> list[str]:
     try:
         assert sitemap_url.endswith("sitemap.xml")
 
-        # Fetch sitemap URL
         response = requests.get(sitemap_url, timeout=10)
         response.raise_for_status()
 
-        # Parse XML content
         root = ET.fromstring(response.content)
 
-        # Handle different XML namespaces that sitemaps might use
         namespaces = (
             {"ns": root.tag.split("}")[0].strip("{")}
             if "}" in root.tag
             else ""
         )
 
-        # Extract URLs using namespace if present
         it = (
             root.findall(".//ns:loc", namespaces)
             if namespaces

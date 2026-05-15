@@ -29,9 +29,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
-
-
 def _sse(payload: dict) -> str:
     """Format a single SSE event line."""
     return f"data: {json.dumps(payload)}\n\n"
@@ -56,6 +53,7 @@ async def _stream_chain(
     query: str,
     think_mode: bool,
     paper_ids: list[str] | None = None,
+    topk: int = 5,
 ) -> AsyncIterator[str]:
     """
     Core streaming coroutine.
@@ -67,9 +65,6 @@ async def _stream_chain(
     retriever = request.app.state.retriever
     settings = get_settings()
 
-    # Flush headers immediately — client sees HTTP 200 + stream-start before
-    # retrieval begins, so the connection is visible right away and benchmark
-    # timing for retrieval is accurate.
     yield _sse({"type": "meta", "content": "stream-start"})
 
     context = []
@@ -79,7 +74,7 @@ async def _stream_chain(
     if settings.chat_fast_retrieval:
         try:
             context = await asyncio.wait_for(
-                retriever.aretrieve(query, paper_ids=paper_ids),
+                retriever.aretrieve(query, paper_ids=paper_ids, topk=topk),
                 timeout=settings.chat_retrieval_timeout_seconds,
             )
             context_md = _build_context_md(query, context, settings)
@@ -91,24 +86,14 @@ async def _stream_chain(
                 exc,
             )
     else:
-        context = await retriever.aretrieve(query, paper_ids=paper_ids)
+        context = await retriever.aretrieve(
+            query, paper_ids=paper_ids, topk=topk
+        )
         context_md = _build_context_md(query, context, settings)
 
     if retrieval_error:
         yield _sse({"type": "meta", "content": "retrieval-unavailable"})
 
-    # Always bind `reasoning` explicitly so Ollama knows to disable CoT when
-    # think_mode=False.  langchain-ollama 1.0.1 maps `reasoning=True/False`
-    # → `think=True/False` in the Ollama request AND sets the internal flag
-    # that extracts reasoning_content from chunk.additional_kwargs.
-    # Using bind(think=...) bypasses both — model thinks but content is lost.
-    #
-    # Note: num_predict is NOT overridden here.  Ollama applies num_predict
-    # to response tokens only (not to the thinking block), so the default
-    # 4096-token cap does not starve the response.  Passing num_predict via
-    # .bind() would also fail — langchain-ollama passes bound kwargs as
-    # top-level args to AsyncClient.chat(), but num_predict belongs inside
-    # the options dict and is rejected as an unexpected keyword argument.
     llm = agent.model.bind(reasoning=think_mode)
     chain = agent.prompt | llm
 
@@ -124,16 +109,12 @@ async def _stream_chain(
                 ],
             }
         ):
-            # Thinking tokens (present only when think_mode is active and the
-            # model supports reasoning — e.g. QwQ, deepseek-r1 via Ollama).
-            # langchain-ollama 1.0.1 stores reasoning in "reasoning_content".
             thinking: str = (
                 chunk.additional_kwargs.get("reasoning_content", "") or ""
             )
             if thinking:
                 yield _sse({"type": "thinking", "content": thinking})
 
-            # Regular response tokens
             text: str = chunk.content or ""
             if text:
                 full_response += text
@@ -144,12 +125,8 @@ async def _stream_chain(
         yield _sse({"type": "error", "content": str(exc)})
         return
 
-    # Persist to shared history after the stream completes
     agent._update_chat_history(query, full_response)
     yield _sse({"type": "done"})
-
-
-# ── endpoints ─────────────────────────────────────────────────────────────────
 
 
 @router.post("/stream")
@@ -163,11 +140,13 @@ async def stream_chat(
     newline.  Event types: thinking | response | done | error.
     """
     return StreamingResponse(
-        _stream_chain(request, body.query, body.think_mode, body.paper_ids),
+        _stream_chain(
+            request, body.query, body.think_mode, body.paper_ids, body.topk
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # disable nginx buffering
+            "X-Accel-Buffering": "no",
         },
     )
 
@@ -186,7 +165,9 @@ async def invoke_chat(body: QueryRequest, request: Request) -> dict:
     if settings.chat_fast_retrieval:
         try:
             context = await asyncio.wait_for(
-                retriever.aretrieve(body.query, paper_ids=body.paper_ids),
+                retriever.aretrieve(
+                    body.query, paper_ids=body.paper_ids, topk=body.topk
+                ),
                 timeout=settings.chat_retrieval_timeout_seconds,
             )
         except Exception as exc:
@@ -198,7 +179,7 @@ async def invoke_chat(body: QueryRequest, request: Request) -> dict:
             context = []
     else:
         context = await retriever.aretrieve(
-            body.query, paper_ids=body.paper_ids
+            body.query, paper_ids=body.paper_ids, topk=body.topk
         )
     context_md = _build_context_md(body.query, context, settings)
 

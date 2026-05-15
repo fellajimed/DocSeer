@@ -51,8 +51,8 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
         background: $surface;
         border: round $primary;
         padding: 1 2;
-        width: 80%;
-        max-width: 72;
+        width: 95%;
+        max-width: 120;
         height: auto;
         max-height: 80%;
     }

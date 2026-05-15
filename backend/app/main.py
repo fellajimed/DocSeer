@@ -38,9 +38,6 @@ from .routers import chat_router, papers_router, settings_router, tasks_router
 logger = logging.getLogger(__name__)
 
 
-# ── model warm-up ─────────────────────────────────────────────────────────────
-
-
 async def _warmup_model(llm: ChatOllama, model_name: str) -> None:
     """
     Fire a minimal request so Ollama loads model weights into Metal/GPU memory
@@ -55,22 +52,14 @@ async def _warmup_model(llm: ChatOllama, model_name: str) -> None:
         logger.warning("LLM warm-up failed (non-fatal): %s", exc)
 
 
-# ── lifespan ──────────────────────────────────────────────────────────────────
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
-    # ── 1. create / migrate DB tables ────────────────────────────────────────
-    # Using create_all here is intentionally simple: Alembic is the preferred
-    # path for production migrations.  create_all is a safe no-op if tables
-    # already exist.
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified / created.")
 
-    # ── 2. pull required Ollama models (if enabled) ───────────────────────────
     if settings.ollama_pull_on_startup:
         models_to_pull = list(
             dict.fromkeys([settings.llm_model, settings.embedding_model])
@@ -80,13 +69,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("ollama_pull_on_startup=False — skipping model pull.")
 
-    # ── 3. initialise embedding model ────────────────────────────────────────
     embeddings = OllamaEmbeddings(
         model=settings.embedding_model,
         base_url=settings.ollama_base_url,
     )
 
-    # ── 4. initialise vector store + docstore ────────────────────────────────
     vector_db = ChromaVectorDB(
         model_embeddings=embeddings,
         batch_size=settings.embedding_batch_size,
@@ -95,14 +82,12 @@ async def lifespan(app: FastAPI):
     )
     docstore = LocalFileStoreDB(path_db=settings.docstore_path)
 
-    # ── 4. initialise retriever ───────────────────────────────────────────────
     retriever = Retriever(
         vector_db=vector_db,
         docstore=docstore,
         topk=settings.retriever_topk,
     )
 
-    # ── 5. initialise LLM + agent ─────────────────────────────────────────────
     llm = ChatOllama(
         model=settings.llm_model,
         base_url=settings.ollama_base_url,
@@ -113,14 +98,9 @@ async def lifespan(app: FastAPI):
     )
     agent = BasicAgent(llm_model=llm, max_turns=settings.chat_history_turns)
 
-    # ── 6. expose on app.state ────────────────────────────────────────────────
     app.state.retriever = retriever
     app.state.agent = agent
 
-    # ── 7. warm up the model in the background ────────────────────────────────
-    # Sends a minimal request so Ollama loads the model weights into GPU/Metal
-    # memory before the first real user query arrives.  reasoning=False avoids
-    # triggering a CoT reasoning pass during warm-up.
     asyncio.create_task(
         _warmup_model(llm.bind(reasoning=False), settings.llm_model)
     )
@@ -134,12 +114,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # ── shutdown ──────────────────────────────────────────────────────────────
     await async_engine.dispose()
     logger.info("Async engine disposed.")
-
-
-# ── app ───────────────────────────────────────────────────────────────────────
 
 
 app = FastAPI(
@@ -152,9 +128,6 @@ app.include_router(papers_router)
 app.include_router(chat_router)
 app.include_router(tasks_router)
 app.include_router(settings_router)
-
-
-# ── health ────────────────────────────────────────────────────────────────────
 
 
 @app.get("/health", tags=["ops"])
@@ -172,7 +145,6 @@ async def health() -> dict:
 
     results: dict = {}
 
-    # DB ping
     try:
         async with AsyncSessionFactory() as session:
             await session.execute(text("SELECT 1"))
@@ -180,7 +152,6 @@ async def health() -> dict:
     except Exception as exc:
         results["postgres"] = f"error: {exc}"
 
-    # Chroma ping — the HTTP client has a heartbeat() call
     try:
         retriever: Retriever = app.state.retriever
         import asyncio
