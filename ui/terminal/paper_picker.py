@@ -17,11 +17,10 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Static
-from textual.widgets import SelectionList
-from textual.widgets.selection_list import Selection
+from textual.widgets import Button, Input, ListView, Static
 
 from utils import AsyncRequester
+from paper_widgets import PaperListItem
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
@@ -79,6 +78,11 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
         height: 12;
         border: solid $primary-darken-2;
         margin-bottom: 1;
+        background: transparent;
+    }
+
+    #picker-list > PaperListItem {
+        background: transparent;
     }
 
     #picker-btn-row {
@@ -96,14 +100,10 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
     def __init__(self, active_ids: list[str] | None = None) -> None:
         super().__init__()
         self._active_ids: list[str] = list(active_ids or [])
-        # Persists checked state across search re-renders (including for items
-        # that are currently hidden by the search filter).
         self._pending_selection: set[str] = set(self._active_ids)
-        # UUIDs of the items currently rendered in the list (in order).
         self._visible_pids: list[str] = []
         self._requester = AsyncRequester()
-        # Full paper list: [(uuid_str, display_label), ...]
-        self._all_papers: list[tuple[str, str]] = []
+        self._all_papers: list[dict] = []
 
     # ── composition ───────────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
             yield Static("  Filter by Papers", id="picker-title")
             yield Input(placeholder="Search papers...", id="picker-search")
             yield Static("Loading papers...", id="picker-status")
-            yield SelectionList(id="picker-list")
+            yield ListView(id="picker-list")
             with Horizontal(id="picker-btn-row"):
                 yield Button("Apply", id="btn-picker-apply", variant="primary")
                 yield Button(
@@ -133,14 +133,7 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
         try:
             resp = await self._requester.request("GET", f"{API_URL}/papers/")
             papers = resp.json()
-            self._all_papers = [
-                (
-                    str(p["id"]),
-                    p.get("title") or p.get("source_path") or str(p["id"]),
-                )
-                for p in papers
-                if p.get("status") == "done"
-            ]
+            self._all_papers = [p for p in papers if p.get("status") == "done"]
             count = len(self._all_papers)
             self.query_one("#picker-status", Static).update(
                 f"{count} ingested paper{'s' if count != 1 else ''}"
@@ -155,38 +148,32 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
     # ── list helpers ──────────────────────────────────────────────────────────
 
     def _sync_visible_to_pending(self) -> None:
-        """Flush the current visible selections into ``_pending_selection``.
-
-        Must be called *before* ``clear_options()`` so we capture the real
-        checked state while the items are still in the list.
-        """
-        sel = self.query_one("#picker-list", SelectionList)
-        selected_now = {str(v) for v in sel.selected}
-        for pid in self._visible_pids:
-            if pid in selected_now:
-                self._pending_selection.add(pid)
-            else:
-                self._pending_selection.discard(pid)
+        """Flush the current visible selections into ``_pending_selection``."""
+        selector = self.query_one("#picker-list", ListView)
+        for item in selector.children:
+            if isinstance(item, PaperListItem):
+                if item.selected:
+                    self._pending_selection.add(item.paper_id)
+                else:
+                    self._pending_selection.discard(item.paper_id)
 
     def _populate_list(self, query: str) -> None:
-        """Re-render the SelectionList with optional substring filter.
-
-        Selections are preserved across re-renders via ``_pending_selection``.
-        We sync the visible state into ``_pending_selection`` *before* calling
-        ``clear_options()`` to avoid the SelectionToggled race condition that
-        fires stale deselect events during the repopulate cycle.
-        """
+        """Re-render the ListView with optional substring filter."""
         self._sync_visible_to_pending()
-        sel = self.query_one("#picker-list", SelectionList)
-        sel.clear_options()
+        selector = self.query_one("#picker-list", ListView)
+        selector.clear()
         self._visible_pids = []
         query_lc = query.lower()
-        for pid, label in self._all_papers:
+        for paper in self._all_papers:
+            label = paper.get("title") or paper.get("source_path") or ""
             if not query_lc or query_lc in label.lower():
+                pid = str(paper["id"])
                 self._visible_pids.append(pid)
-                sel.add_option(
-                    Selection(label, pid, pid in self._pending_selection)
-                )
+                item = PaperListItem(pid, paper, show_status=False)
+                item.selected = pid in self._pending_selection
+                if item.selected:
+                    item.add_class("-selected")
+                selector.append(item)
 
     # ── event handlers ────────────────────────────────────────────────────────
 
@@ -194,15 +181,34 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
     def _search_changed(self, event: Input.Changed) -> None:
         self._populate_list(event.value)
 
+    @on(ListView.Selected)
+    def _on_select(self, event: ListView.Selected) -> None:
+        if event.item is None:
+            return
+        item = event.item
+        while item is not None and not isinstance(item, PaperListItem):
+            item = item.parent
+        if item is None:
+            return
+        assert isinstance(item, PaperListItem)
+        pid = item.paper_id
+        if pid in self._pending_selection:
+            self._pending_selection.discard(pid)
+            item.selected = False
+        else:
+            self._pending_selection.add(pid)
+            item.selected = True
+        item.refresh_display()
+
     # ── apply / cancel ────────────────────────────────────────────────────────
 
     def action_apply(self) -> None:
         """Dismiss with the currently selected (id, label) pairs."""
         self._sync_visible_to_pending()
         result = [
-            (pid, label)
-            for pid, label in self._all_papers
-            if pid in self._pending_selection
+            (str(p["id"]), p.get("title") or p.get("source_path") or "")
+            for p in self._all_papers
+            if str(p["id"]) in self._pending_selection
         ]
         self.dismiss(result)
 

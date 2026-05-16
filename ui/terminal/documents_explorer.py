@@ -10,9 +10,10 @@ Papers management panel.  Communicates with the unified FastAPI backend via:
   POST /papers/{id}/ingest     – (re-)trigger ingestion of an existing paper
   DELETE /papers/{id}          – delete paper + embeddings
 
-The selection list shows:
-  "<title or filename>  [<status>]"
-The value stored per item is the paper UUID (string).
+Each paper item shows:
+  Line 1: Title (bold)
+  Line 2: Authors (dim)
+  Line 3: Status badge (colored)
 """
 
 from __future__ import annotations
@@ -33,38 +34,16 @@ from textual.widgets import (
     Button,
     Input,
     Label,
-    SelectionList,
+    ListView,
     Static,
 )
-from textual.widgets.selection_list import Selection
 
 from utils import AsyncRequester
 from bibtex_import_modal import BibtexImportModal
 from confirmation_modal import ConfirmationModal
+from paper_widgets import PaperListItem
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
-
-
-_STATUS_STYLE: dict[str, str] = {
-    "done": "bold green",
-    "processing": "bold yellow",
-    "pending": "yellow",
-    "failed": "bold red",
-    "metadata_only": "dim cyan",
-}
-
-
-def _paper_label(paper: dict) -> str:
-    raw_title = paper.get("title")
-    title = raw_title.strip() if isinstance(raw_title, str) else ""
-    if not title:
-        title = (
-            paper.get("source_path") or paper.get("url") or str(paper["id"])
-        )
-    status = paper.get("status", "")
-    style = _STATUS_STYLE.get(status, "")
-    badge = f"[{style}]{status}[/{style}]" if style else status
-    return f"{title}  {badge}"
 
 
 def _paper_name(paper: dict) -> str:
@@ -92,7 +71,6 @@ class DocumentsExplorerWidget(Static):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._papers: dict[str, dict] = {}
-        self._labels: dict[str, str] = {}
         self._selected_ids: set[str] = set()
         self._task_watchers: dict[str, asyncio.Task[None]] = {}
         self._requester = AsyncRequester()
@@ -105,7 +83,7 @@ class DocumentsExplorerWidget(Static):
                     yield Input(
                         placeholder="Search papers ...", id="search_input"
                     )
-                    yield SelectionList[str](id="doc_selector")
+                    yield ListView(id="doc_selector")
 
                 with Vertical(id="sidebar"):
                     yield Label(id="selected_view")
@@ -142,6 +120,16 @@ class DocumentsExplorerWidget(Static):
         )
         self._task_watchers.clear()
 
+    def _build_paper_items(self, papers: list[dict]) -> list[PaperListItem]:
+        items = []
+        for p in papers:
+            item = PaperListItem(p["id"], p)
+            item.selected = p["id"] in self._selected_ids
+            if item.selected:
+                item.add_class("-selected")
+            items.append(item)
+        return items
+
     async def _load_papers(self) -> None:
         try:
             response = await self._requester.request(
@@ -153,7 +141,6 @@ class DocumentsExplorerWidget(Static):
             papers: list[dict] = response.json()
 
             self._papers = {p["id"]: p for p in papers}
-            self._labels = {p["id"]: _paper_label(p) for p in papers}
 
             for paper in papers:
                 status = paper.get("status")
@@ -161,14 +148,10 @@ class DocumentsExplorerWidget(Static):
                 if status in {"pending", "processing"} and task_id:
                     self._watch_task(task_id)
 
-            selector = self.query_one("#doc_selector", SelectionList)
-            selector.clear_options()
-            selector.add_options(
-                [
-                    Selection(label, pid, pid in self._selected_ids)
-                    for pid, label in self._labels.items()
-                ]
-            )
+            selector = self.query_one("#doc_selector", ListView)
+            selector.clear()
+            for item in self._build_paper_items(papers):
+                selector.append(item)
             selector.border_title = f"Papers ({len(self._papers)})"
 
             self.query_one("#selected_view").border_title = "Selected"
@@ -231,15 +214,16 @@ class DocumentsExplorerWidget(Static):
     @on(Input.Changed, "#search_input")
     def _filter(self, event: Input.Changed) -> None:
         q = event.value.lower()
-        selector = self.query_one("#doc_selector", SelectionList)
-        selector.clear_options()
-        selector.add_options(
-            [
-                Selection(label, pid, pid in self._selected_ids)
-                for pid, label in self._labels.items()
-                if q in label.lower()
-            ]
-        )
+        selector = self.query_one("#doc_selector", ListView)
+        selector.clear()
+        filtered = []
+        for p in self._papers.values():
+            title = (p.get("title") or "").lower()
+            authors = ", ".join(p.get("authors", [])[:2]).lower()
+            if q in title or q in authors:
+                filtered.append(p)
+        for item in self._build_paper_items(filtered):
+            selector.append(item)
 
     @on(Mount)
     def _init_selected_view(self) -> None:
@@ -249,50 +233,70 @@ class DocumentsExplorerWidget(Static):
         except Exception:
             pass
 
-    @on(SelectionList.SelectedChanged)
-    def _update_selected(self) -> None:
-        selector = self.query_one("#doc_selector", SelectionList)
-        currently_shown = set(selector._values.keys())
-        selected_now = set(selector.selected)
-        new_selected = (self._selected_ids - currently_shown) | selected_now
-
-        if new_selected == self._selected_ids:
+    @on(ListView.Selected)
+    def _on_select(self, event: ListView.Selected) -> None:
+        if event.item is None:
             return
-
-        self._selected_ids = new_selected
+        item = event.item
+        while item is not None and not isinstance(item, PaperListItem):
+            item = item.parent
+        if item is None:
+            return
+        assert isinstance(item, PaperListItem)
+        pid = item.paper_id
+        if pid in self._selected_ids:
+            self._selected_ids.discard(pid)
+            item.selected = False
+        else:
+            self._selected_ids.add(pid)
+            item.selected = True
+        item.refresh_display()
         self._refresh_selected_view()
         self._emit_selection_changed()
 
+    @on(ListView.Highlighted)
+    def _on_highlight(self, event: ListView.Highlighted) -> None:
+        pass
+
     def _refresh_selected_view(self) -> None:
-        titles = [self._labels.get(pid, pid) for pid in self._selected_ids]
+        titles = []
+        for pid in self._selected_ids:
+            paper = self._papers.get(pid, {})
+            raw_title = paper.get("title")
+            title = raw_title.strip() if isinstance(raw_title, str) else ""
+            if not title:
+                title = (
+                    paper.get("source_path")
+                    or paper.get("url")
+                    or str(paper.get("id", pid))
+                )
+            titles.append(title)
         self.query_one("#selected_view", Label).update(
             "\n".join(f"• {t}" for t in titles)
         )
 
     def _emit_selection_changed(self) -> None:
-        selected = [
-            (pid, self._labels.get(pid, pid))
-            for pid in self._selected_ids
-            if pid in self._labels
-        ]
+        selected = []
+        for pid in self._selected_ids:
+            paper = self._papers.get(pid, {})
+            raw_title = paper.get("title")
+            title = raw_title.strip() if isinstance(raw_title, str) else ""
+            if not title:
+                title = (
+                    paper.get("source_path")
+                    or paper.get("url")
+                    or str(paper.get("id", pid))
+                )
+            selected.append((pid, title))
         self.post_message(self.SelectionChanged(selected))
 
     def set_selection(self, paper_ids: set[str]) -> None:
-        """Programmatically update the selection (e.g. from the chat filter).
-
-        Rebuilds the SelectionList with the new state, updates the sidebar,
-        and emits ``SelectionChanged`` once.  The ``_update_selected`` guard
-        suppresses the duplicate events fired by ``clear_options``/``add_options``.
-        """
+        """Programmatically update the selection (e.g. from the chat filter)."""
         self._selected_ids = set(paper_ids)
-        selector = self.query_one("#doc_selector", SelectionList)
-        selector.clear_options()
-        selector.add_options(
-            [
-                Selection(label, pid, pid in self._selected_ids)
-                for pid, label in self._labels.items()
-            ]
-        )
+        selector = self.query_one("#doc_selector", ListView)
+        selector.clear()
+        for item in self._build_paper_items(list(self._papers.values())):
+            selector.append(item)
         self._refresh_selected_view()
         self._emit_selection_changed()
 
@@ -333,18 +337,17 @@ class DocumentsExplorerWidget(Static):
         deleted = 0
         for pid, res in zip(ids, results):
             if isinstance(res, Exception):
-                label = self._labels.get(pid, pid)
+                paper = self._papers.get(pid, {})
+                label = _paper_name(paper) or pid
                 self.notify(f"Error deleting {label}: {res}", severity="error")
             else:
                 deleted += 1
                 self._papers.pop(pid, None)
-                self._labels.pop(pid, None)
 
-        selector = self.query_one("#doc_selector", SelectionList)
-        selector.clear_options()
-        selector.add_options(
-            [Selection(lbl, pid) for pid, lbl in self._labels.items()]
-        )
+        selector = self.query_one("#doc_selector", ListView)
+        selector.clear()
+        for item in self._build_paper_items(list(self._papers.values())):
+            selector.append(item)
         selector.border_title = f"Papers ({len(self._papers)})"
 
         if deleted:
@@ -376,7 +379,8 @@ class DocumentsExplorerWidget(Static):
                 )
                 response.raise_for_status()
                 data = response.json()
-                label = self._labels.get(pid, pid)
+                paper = self._papers.get(pid, {})
+                label = _paper_name(paper) or pid
                 task_id = data.get("task_id", "")
                 if task_id:
                     self._watch_task(task_id)

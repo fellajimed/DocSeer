@@ -30,18 +30,20 @@ DocumentsExplorerWidget #doc_selector {
     background: transparent;
 }
 
-DocumentsExplorerWidget #doc_selector .selection-list--option {
+DocumentsExplorerWidget #doc_selector > PaperListItem {
     background: transparent;
 }
 
-DocumentsExplorerWidget #doc_selector .selection-list--option.-highlight {
+DocumentsExplorerWidget #doc_selector > PaperListItem.-selected {
     background: $primary 20%;
 }
 
-DocumentsExplorerWidget #doc_selector .-selected {
-    background: $success 20%;
-    color: $success;
-    text-style: bold;
+DocumentsExplorerWidget #doc_selector > PaperListItem.-highlight {
+    background: $primary 10%;
+}
+
+DocumentsExplorerWidget #doc_selector > PaperListItem.-highlight.-selected {
+    background: $primary 30%;
 }
 
 DocumentsExplorerWidget #sidebar {
