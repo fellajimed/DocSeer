@@ -217,9 +217,12 @@ def grobid_metadata_to_paper(raw: dict[str, Any]) -> dict[str, Any]:
     Normalise the flat dict returned by GROBID / MetadataExtractor into the
     subset of fields we store on the Paper model.
     """
+    authors = raw.get("authors") or raw.get("author")
+    if isinstance(authors, str):
+        authors = _split_authors(authors)
     return {
         "title": _clean(raw.get("title")),
-        "authors": raw.get("authors") or [],
+        "authors": authors or [],
         "abstract": _clean(raw.get("abstract")),
         "doi": _clean(raw.get("doi")),
         "year": _parse_year(raw.get("year")),

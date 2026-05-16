@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,8 +134,9 @@ async def add_paper(body: PaperCreate, db: DB):
 )
 async def import_bibtex(body: BibtexImportRequest, db: DB):
     """
-    Parse a Zotero BibTeX export and create one Paper per entry.
-    Skips entries whose bibtex_key already exists in the database.
+    Parse a BibTeX export and create one Paper per entry.
+    Matches existing papers by bibtex_key, source_path, or DOI and
+    populates their metadata from BibTeX fields (BibTeX is trusted as correct).
     If trigger_ingest=true and the entry has a source_path, queues ingestion;
     otherwise the paper is created with status=metadata_only.
     """
@@ -143,31 +144,92 @@ async def import_bibtex(body: BibtexImportRequest, db: DB):
     responses: list[IngestResponse] = []
 
     for entry in entries:
+        paper = None
+
+        match_conditions = []
         if entry.get("bibtex_key"):
+            match_conditions.append(Paper.bibtex_key == entry["bibtex_key"])
+        if entry.get("source_path"):
+            match_conditions.append(Paper.source_path == entry["source_path"])
+        if entry.get("doi"):
+            match_conditions.append(Paper.doi == entry["doi"])
+
+        if match_conditions:
             existing = await db.execute(
-                select(Paper).where(Paper.bibtex_key == entry["bibtex_key"])
+                select(Paper).where(or_(*match_conditions))
             )
-            if existing.scalar_one_or_none():
-                logger.debug(
-                    "Skipping duplicate bibtex_key %s", entry["bibtex_key"]
+            paper = existing.scalar_one_or_none()
+
+        if paper is not None:
+            for field in entry:
+                if hasattr(Paper, field) and entry[field] is not None:
+                    if field == "extra_metadata":
+                        existing_extra = paper.extra_metadata or {}
+                        existing_extra.update(entry["extra_metadata"])
+                        paper.extra_metadata = existing_extra  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+                    elif field == "source_path":
+                        if not paper.source_path:
+                            paper.source_path = str(entry["source_path"])  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+                    elif field not in (
+                        "status",
+                        "error_message",
+                        "chunk_count",
+                        "celery_task_id",
+                        "date_added",
+                        "date_processed",
+                        "id",
+                    ):
+                        setattr(paper, field, entry[field])
+            await db.commit()
+        else:
+            paper = Paper(
+                status=PaperStatus.metadata_only,
+                **{k: v for k, v in entry.items() if hasattr(Paper, k)},
+            )
+            db.add(paper)
+            try:
+                await db.flush()
+            except IntegrityError:
+                await db.rollback()
+                existing = await db.execute(
+                    select(Paper).where(
+                        Paper.source_path == entry.get("source_path")
+                    )
                 )
-                continue
+                paper = existing.scalar_one_or_none()
+                if paper is None:
+                    continue
+                for field in entry:
+                    if (
+                        hasattr(Paper, field)
+                        and entry[field] is not None
+                        and field
+                        not in (
+                            "status",
+                            "error_message",
+                            "chunk_count",
+                            "celery_task_id",
+                            "date_added",
+                            "date_processed",
+                            "id",
+                            "source_path",
+                        )
+                    ):
+                        setattr(paper, field, entry[field])
+                paper.source_path = str(entry["source_path"])  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+            await db.commit()
 
-        paper = Paper(
-            status=PaperStatus.metadata_only,
-            **{k: v for k, v in entry.items() if hasattr(Paper, k)},
-        )
-        db.add(paper)
-        await db.flush()
-        await db.commit()
-
-        if body.trigger_ingest and paper.source_path:
+        if (
+            body.trigger_ingest
+            and paper.source_path
+            and paper.status in {PaperStatus.metadata_only, PaperStatus.failed}
+        ):
             resp = _dispatch(paper)
             await db.commit()
         else:
             resp = IngestResponse(
                 paper_id=paper.id,  # ty:ignore[invalid-argument-type]
-                task_id="",
+                task_id=str(paper.celery_task_id) or "",
                 status="metadata_only",  # type: ignore[arg-type]
             )
         responses.append(resp)
