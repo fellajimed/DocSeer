@@ -185,7 +185,7 @@ def main() -> None:
         ok("Paper created, ingest task queued")
 
         # ── 3. Wait for ingestion ─────────────────────────────────────────────
-        step(3, TOTAL, f"Waiting for ingestion (timeout={POLL_TIMEOUT}s)…")
+        step(3, TOTAL, f"Waiting for ingestion (timeout={POLL_TIMEOUT}s)...")
         t0 = time.monotonic()
         final = poll_task(client, task_id) or dict()
         elapsed = time.monotonic() - t0
@@ -208,7 +208,7 @@ def main() -> None:
         )
 
         # ── 4. Chat ───────────────────────────────────────────────────────────
-        step(4, TOTAL, "Streaming chat query…")
+        step(4, TOTAL, "Streaming chat query...")
         info(f"Query: {CYAN}{CHAT_QUERY}{RESET}")
         print(f"\n{DIM}--- response stream start ---{RESET}")
 
@@ -235,7 +235,7 @@ def main() -> None:
             )
 
         # ── 5. Cleanup ────────────────────────────────────────────────────────
-        step(5, TOTAL, "Cleaning up (DELETE paper + embeddings)…")
+        step(5, TOTAL, "Cleaning up (DELETE paper + embeddings)...")
         r = client.delete(f"{API_URL}/papers/{paper_id}", timeout=30)
         if r.status_code != 204:
             warn(f"DELETE returned HTTP {r.status_code} (non-fatal)")

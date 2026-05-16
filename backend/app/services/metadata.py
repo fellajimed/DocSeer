@@ -127,6 +127,18 @@ def _zotero_item_to_dict(item: dict[str, Any]) -> dict[str, Any]:
     if date_str:
         year = _parse_year(date_str)
 
+    source_path = None
+    for att in item.get("attachments") or []:
+        url = att.get("url")
+        ctype = (att.get("contentType") or att.get("mimeType") or "").lower()
+        if url and "pdf" in ctype:
+            source_path = url
+            break
+    if not source_path:
+        enclosure = (item.get("links") or {}).get("enclosure") or {}
+        if enclosure.get("type") == "application/pdf":
+            source_path = enclosure.get("href")
+
     return {
         "title": item.get("title"),
         "authors": authors,
@@ -135,6 +147,7 @@ def _zotero_item_to_dict(item: dict[str, Any]) -> dict[str, Any]:
         "publisher": item.get("publisher"),
         "doi": item.get("DOI"),
         "url": item.get("url"),
+        "source_path": source_path,
         "abstract": item.get("abstractNote"),
         "zotero_key": item.get("key"),
         "extra_metadata": {

@@ -27,6 +27,15 @@ DocumentsExplorerWidget #search_input {
 DocumentsExplorerWidget #doc_selector {
     height: 1fr;
     border: tall $primary;
+    background: transparent;
+}
+
+DocumentsExplorerWidget #doc_selector .selection-list--option {
+    background: transparent;
+}
+
+DocumentsExplorerWidget #doc_selector .selection-list--option.-highlight {
+    background: $primary 20%;
 }
 
 DocumentsExplorerWidget #doc_selector .-selected {
@@ -45,7 +54,6 @@ DocumentsExplorerWidget #selected_view {
     width: 100%;
     height: 80%;
     border: tall $secondary;
-    background: $surface;
     padding: 1 2;
     overflow-y: scroll;
     margin-bottom: 1;

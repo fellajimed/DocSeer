@@ -1,0 +1,10 @@
+# DocSeer configuration
+# ───────────────────
+# Values override the defaults in .env / docker-compose.yaml.
+# Keys prefixed with DOCSEER_ map directly to environment variables.
+# Short names (without prefix) get DOCSEER_ prepended automatically.
+
+llm_model: qwen3.5:4b
+embedding_model: nomic-embed-text
+retriever_topk: 10
+chat_num_ctx: 32000

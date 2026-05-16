@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.app.services.metadata import (
+    _zotero_item_to_dict,
     fetch_metadata_from_url,
     grobid_metadata_to_paper,
     parse_bibtex,
@@ -249,3 +250,95 @@ async def test_fetch_metadata_http_error_returns_none():
         )
 
     assert result is None
+
+
+# ── _zotero_item_to_dict source_path extraction ───────────────────────────────
+
+
+def test_zotero_source_path_from_attachments():
+    item = {
+        "title": "Test Paper",
+        "creators": [],
+        "date": "2024",
+        "attachments": [
+            {
+                "url": "https://arxiv.org/pdf/2407.01985.pdf",
+                "contentType": "application/pdf",
+            },
+            {
+                "url": "https://example.com/supplemental.zip",
+                "contentType": "application/zip",
+            },
+        ],
+    }
+    result = _zotero_item_to_dict(item)
+    assert result["source_path"] == "https://arxiv.org/pdf/2407.01985.pdf"
+
+
+def test_zotero_source_path_from_mimetype():
+    item = {
+        "title": "Test Paper",
+        "creators": [],
+        "date": "2024",
+        "attachments": [
+            {
+                "url": "https://example.com/paper.pdf",
+                "mimeType": "application/pdf",
+            },
+        ],
+    }
+    result = _zotero_item_to_dict(item)
+    assert result["source_path"] == "https://example.com/paper.pdf"
+
+
+def test_zotero_source_path_from_links_enclosure():
+    item = {
+        "title": "Test Paper",
+        "creators": [],
+        "date": "2024",
+        "links": {
+            "enclosure": {
+                "href": "https://example.com/paper.pdf",
+                "type": "application/pdf",
+            }
+        },
+    }
+    result = _zotero_item_to_dict(item)
+    assert result["source_path"] == "https://example.com/paper.pdf"
+
+
+def test_zotero_source_path_none_when_no_pdf():
+    item = {
+        "title": "Test Paper",
+        "creators": [],
+        "date": "2024",
+        "attachments": [
+            {
+                "url": "https://example.com/page.html",
+                "contentType": "text/html",
+            },
+        ],
+    }
+    result = _zotero_item_to_dict(item)
+    assert result["source_path"] is None
+
+
+def test_zotero_source_path_attachments_first_pdf():
+    """Should pick the first PDF attachment, not a later non-PDF one."""
+    item = {
+        "title": "Test Paper",
+        "creators": [],
+        "date": "2024",
+        "attachments": [
+            {
+                "url": "https://example.com/paper.pdf",
+                "contentType": "application/pdf",
+            },
+            {
+                "url": "https://example.com/alt.pdf",
+                "contentType": "application/pdf",
+            },
+        ],
+    }
+    result = _zotero_item_to_dict(item)
+    assert result["source_path"] == "https://example.com/paper.pdf"

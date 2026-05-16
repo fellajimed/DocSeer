@@ -45,7 +45,7 @@ async def _warmup_model(llm: ChatOllama, model_name: str) -> None:
     not blocked.
     """
     try:
-        logger.info("Warming up LLM model '%s' in background…", model_name)
+        logger.info("Warming up LLM model '%s' in background...", model_name)
         await llm.ainvoke("hi")
         logger.info("LLM warm-up complete.")
     except Exception as exc:

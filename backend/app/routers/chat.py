@@ -109,6 +109,10 @@ async def _stream_chain(
                 ],
             }
         ):
+            if await request.is_disconnected():
+                yield _sse({"type": "cancelled"})
+                return
+
             thinking: str = (
                 chunk.additional_kwargs.get("reasoning_content", "") or ""
             )
@@ -120,6 +124,9 @@ async def _stream_chain(
                 full_response += text
                 yield _sse({"type": "response", "content": text})
 
+    except asyncio.CancelledError:
+        yield _sse({"type": "cancelled"})
+        return
     except Exception as exc:
         logger.exception("Streaming error for query %r: %s", query, exc)
         yield _sse({"type": "error", "content": str(exc)})

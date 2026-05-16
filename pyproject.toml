@@ -56,6 +56,9 @@ dev = [
     "pre-commit>=4.0.0",
 ]
 
+[tool.uv]
+package = true
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -70,6 +73,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "slow: marks tests that run real Docling/PDF conversion (deselect with '-m not slow')",
+    "requires_app: marks tests that require the running DocSeer API (deselect with '-m not requires_app')",
 ]
 filterwarnings = [
     "ignore:Field `generate_table_images` is deprecated:DeprecationWarning",

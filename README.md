@@ -38,6 +38,22 @@ That's it. No Python, Ollama, or Postgres installation needed on the host — un
 
 ## Quick start
 
+### Using the CLI (recommended)
+
+```bash
+# 1. Clone and install
+git clone https://github.com/fellajimed/docseer.git
+cd docseer
+uv pip install -e .
+
+# 2. Start everything and launch the TUI
+docseer
+```
+
+One command starts all Docker services (Postgres, Redis, ChromaDB, Ollama, GROBID, Zotero, API, worker, Flower), waits for healthchecks, then opens the Textual TUI. Press `Ctrl+C` or `Ctrl+Q` to quit — services stop automatically.
+
+### Using `make`
+
 ```bash
 # 1. Clone the repo
 git clone https://github.com/fellajimed/docseer.git
@@ -127,6 +143,20 @@ All settings are environment variables prefixed with `DOCSEER_`. Copy `.env.exam
 cp .env.example .env
 ```
 
+You can also pass a YAML config file at runtime with the `-c` / `--config` flag. Short names (without the `DOCSEER_` prefix) are automatically expanded:
+
+```bash
+docseer -c docseer.example.yaml
+```
+
+```yaml
+# docseer.example.yaml
+llm_model: qwen3.5:4b
+embedding_model: nomic-embed-text
+retriever_topk: 10
+chat_num_ctx: 32000
+```
+
 ### Key settings
 
 | Variable | Default | Description |
@@ -190,6 +220,27 @@ Set `DOCSEER_OLLAMA_PULL_ON_STARTUP=false` if you pre-pull models yourself or wo
 | `make migrate` | Apply Alembic migrations to HEAD |
 | `make shell` | Open a bash shell inside the API container |
 | `make test` | Run the pytest suite inside the API container |
+
+---
+
+## CLI reference
+
+Once installed (`uv pip install -e .` or `pip install docseer`), the `docseer` command manages the full stack.
+
+| Command | Description |
+|---|---|
+| `docseer` | Start services, launch TUI, then stop on exit (default) |
+| `docseer run` | Same as above |
+| `docseer run --keep` | Keep services running after TUI exits |
+| `docseer run --native` | Use native macOS Ollama (Metal GPU) |
+| `docseer run --no-wait` | Don't wait for healthchecks (faster startup) |
+| `docseer run --rebuild` | Force rebuild of Docker images |
+| `docseer run -c config.yaml` | Start with YAML config overrides |
+| `docseer start` | Start all Docker services in background |
+| `docseer stop` | Stop all Docker services |
+| `docseer clean` | Stop services and wipe all volumes |
+| `docseer tui` | Launch TUI only (services must already be running) |
+| `docseer --version` | Show version |
 
 ---
 

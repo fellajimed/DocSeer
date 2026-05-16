@@ -49,7 +49,7 @@ def _entry_label(entry: Entry) -> str:
     # Truncate title so the row fits in ~72 chars
     max_title = 50
     if len(title) > max_title:
-        title = title[:max_title].rstrip() + "…"
+        title = title[:max_title].rstrip() + "..."
 
     if prefix:
         return f"{prefix}  —  {title}"
@@ -149,7 +149,7 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
         n = len(self._entries)
         with Vertical(id="bib-dialog"):
             yield Static("  Import from BibTeX", id="bib-title")
-            yield Input(placeholder="Search entries…", id="bib-search")
+            yield Input(placeholder="Search entries...", id="bib-search")
             yield Static(
                 f"Found {n} entr{'y' if n == 1 else 'ies'}  —  selected = queued for ingestion, deselected = metadata only",
                 id="bib-status",

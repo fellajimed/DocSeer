@@ -5,7 +5,7 @@ Runs one `docker logs -f --tail=100 <container>` subprocess per service and
 streams the output into a single shared RichLog widget, colour-coded by service.
 
 Additionally installs a Python logging.Handler so that any log records emitted
-by the TUI process itself (logging.getLogger(…)) also appear in the same pane,
+by the TUI process itself (logging.getLogger(...)) also appear in the same pane,
 labelled "app" in bright_cyan.  This makes application-level warnings and errors
 visible in both native and Docker run modes.
 
@@ -154,7 +154,7 @@ class DockerLogsWidget(Static):
     def compose(self) -> ComposeResult:
         with Horizontal(id="log-search-bar"):
             yield Input(
-                placeholder="Search logs… (Esc to clear)",
+                placeholder="Search logs... (Esc to clear)",
                 id="log-search",
             )
         yield _AutoScrollLog(

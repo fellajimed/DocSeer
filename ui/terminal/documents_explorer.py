@@ -125,7 +125,7 @@ class DocumentsExplorerWidget(Static):
 
         with Horizontal(id="input_bar"):
             yield Input(
-                placeholder="Path (.pdf / .bib) or URL to new paper …",
+                placeholder="Path (.pdf / .bib) or URL to new paper ...",
                 id="new_item_input",
             )
             yield Button("Add Paper", id="add_btn", variant="success")
@@ -208,12 +208,14 @@ class DocumentsExplorerWidget(Static):
                             None,
                         )
                         name = (
-                            _paper_name(paper) if paper else task_id[:12] + "…"
+                            _paper_name(paper)
+                            if paper
+                            else task_id[:12] + "..."
                         )
                         self.notify(f"Ingestion complete: {name}")
                     else:
                         self.notify(
-                            f"Ingestion task {task_id[:12]}… ended as {state}.",
+                            f"Ingestion task {task_id[:12]}... ended as {state}.",
                             severity="error",
                         )
                     break
@@ -379,9 +381,9 @@ class DocumentsExplorerWidget(Static):
                 if task_id:
                     self._watch_task(task_id)
                 self.notify(
-                    f"Re-ingesting: {label[:30]}…\nTask: {task_id[:12]}…"
+                    f"Re-ingesting: {label[:30]}...\nTask: {task_id[:12]}..."
                     if task_id
-                    else f"Re-ingest queued: {label[:30]}…"
+                    else f"Re-ingest queued: {label[:30]}..."
                 )
             except Exception as exc:
                 self.notify(f"Re-ingest error: {exc}", severity="error")
@@ -410,7 +412,7 @@ class DocumentsExplorerWidget(Static):
                 if task_id:
                     self._watch_task(task_id)
                 self.notify(
-                    f"Queued for ingestion\nTask: {task_id[:12]}…"
+                    f"Queued for ingestion\nTask: {task_id[:12]}..."
                     if task_id
                     else "Added (metadata only)."
                 )
@@ -449,7 +451,7 @@ class DocumentsExplorerWidget(Static):
                 if task_id:
                     self._watch_task(task_id)
                 self.notify(
-                    f"Queued for ingestion\nTask: {task_id[:12]}…"
+                    f"Queued for ingestion\nTask: {task_id[:12]}..."
                     if task_id
                     else "Added (metadata only)."
                 )

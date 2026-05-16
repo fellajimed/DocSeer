@@ -110,8 +110,8 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="picker-dialog"):
             yield Static("  Filter by Papers", id="picker-title")
-            yield Input(placeholder="Search papers…", id="picker-search")
-            yield Static("Loading papers…", id="picker-status")
+            yield Input(placeholder="Search papers...", id="picker-search")
+            yield Static("Loading papers...", id="picker-status")
             yield SelectionList(id="picker-list")
             with Horizontal(id="picker-btn-row"):
                 yield Button("Apply", id="btn-picker-apply", variant="primary")

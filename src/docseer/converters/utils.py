@@ -41,7 +41,21 @@ def bibtex_to_dict(bibtex: str) -> dict:
     result = {k.lower(): v.strip() for k, v in fields}
 
     return {
-        "title": result.get("title", "").title(),
+        "title": _clean(result.get("title", "")),
         "author": parse_authors(result.get("author", "")),
         "abstract": result.get("abstract", ""),
+        "year": _parse_bibtex_year(result.get("year", "")),
     }
+
+
+def _clean(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.strip() or None
+
+
+def _parse_bibtex_year(value: str) -> int | None:
+    try:
+        return int(value.strip()[:4])
+    except (TypeError, ValueError, AttributeError):
+        return None

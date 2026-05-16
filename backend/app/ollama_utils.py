@@ -44,7 +44,7 @@ async def _pull_model(model: str, base_url: str) -> None:
     to keep the log readable without flooding it.
     """
     url = f"{base_url}/api/pull"
-    logger.info("Pulling Ollama model '%s' …", model)
+    logger.info("Pulling Ollama model '%s' ...", model)
 
     last_pct: int = -1
 

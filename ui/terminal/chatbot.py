@@ -193,7 +193,7 @@ class BotChatMessage(Static):
     Sections:
       • Thinking panel  – dim italic, shows raw thinking tokens batched at
                           30 ms intervals.  Title shows live word count while
-                          streaming ("Reasoning… (42 words)"), then settles
+                          streaming ("Reasoning... (42 words)"), then settles
                           to "Reasoning (42 words)" when done.
                           Auto-collapses when the first response token arrives.
       • Response panel  – markdown-rendered response, also flushed every 30 ms.
@@ -230,11 +230,11 @@ class BotChatMessage(Static):
     def _update_collapsible_title(self, *, done: bool = False) -> None:
         wc = self._thinking_word_count()
         if wc == 0:
-            title = "Reasoning…" if not done else "Reasoning"
+            title = "Reasoning..." if not done else "Reasoning"
         elif done:
             title = f"Reasoning ({wc} words)"
         else:
-            title = f"Reasoning… ({wc} words)"
+            title = f"Reasoning... ({wc} words)"
         collapsible = self.query_one("#thinking-collapsible", Collapsible)
         collapsible.title = title
 
@@ -364,7 +364,7 @@ class ChatbotWidget(Static):
             yield Button("✕ Clear", id="btn-clear-filter", variant="warning")
         yield SubmitTextArea(
             id="input",
-            placeholder="Ask a question… (/summarize, /extract, /synthesize, /papers)",
+            placeholder="Ask a question... (/summarize, /extract, /synthesize, /papers)",
         )
 
     async def on_mount(self) -> None:

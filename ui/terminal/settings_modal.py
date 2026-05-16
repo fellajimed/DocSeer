@@ -90,7 +90,9 @@ class FuzzyModelSelect(Widget):
     }
     """
 
-    def __init__(self, placeholder: str = "Type to search…", **kwargs) -> None:
+    def __init__(
+        self, placeholder: str = "Type to search...", **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self._all_models: list[str] = []
         self._placeholder = placeholder
@@ -118,7 +120,7 @@ class FuzzyModelSelect(Widget):
 
         inp = self.query_one(Input)
         inp.placeholder = (
-            f"Search… (active: {current})" if current else self._placeholder
+            f"Search... (active: {current})" if current else self._placeholder
         )
         self._refresh_list("")
         if current in models:
@@ -166,7 +168,7 @@ class FuzzyModelSelect(Widget):
         inp = self.query_one(Input)
         self._suppress = True
         inp.value = chosen
-        inp.placeholder = f"Search… (active: {chosen})"
+        inp.placeholder = f"Search... (active: {chosen})"
         self._suppress = False
         self._refresh_list("")
         inp.focus()
@@ -264,14 +266,14 @@ class SettingsModal(ModalScreen[list[str] | None]):
             with Vertical(classes="setting-row"):
                 yield Label("LLM Model", classes="setting-label")
                 yield FuzzyModelSelect(
-                    placeholder="Search LLM models…",
+                    placeholder="Search LLM models...",
                     id="sel-llm",
                 )
 
             with Vertical(classes="setting-row"):
                 yield Label("Embedding Model", classes="setting-label")
                 yield FuzzyModelSelect(
-                    placeholder="Search embedding models…",
+                    placeholder="Search embedding models...",
                     id="sel-embed",
                 )
 
@@ -280,7 +282,7 @@ class SettingsModal(ModalScreen[list[str] | None]):
             with Vertical(classes="setting-row"):
                 yield Label("Theme", classes="setting-label")
                 yield FuzzyModelSelect(
-                    placeholder="Search themes…",
+                    placeholder="Search themes...",
                     id="sel-theme",
                 )
 

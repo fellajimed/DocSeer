@@ -117,7 +117,11 @@ async def test_import_bibtex_dedup_skips_existing(async_client, mock_session):
         json={"bibtex": SAMPLE_BIBTEX, "trigger_ingest": False},
     )
     assert resp.status_code == 202
-    assert resp.json() == []  # skipped
+    body = resp.json()
+    # Existing paper is updated and returned, not skipped
+    assert len(body) == 1
+    assert body[0]["status"] == "metadata_only"
+    assert body[0]["paper_id"] == str(existing.id)
 
 
 async def test_import_bibtex_trigger_ingest(async_client, mock_session):
@@ -248,3 +252,134 @@ async def test_delete_paper_with_embeddings_queues_cleanup(
 async def test_delete_paper_not_found(async_client):
     resp = await async_client.delete(f"/papers/{uuid.uuid4()}")
     assert resp.status_code == 404
+
+
+# ── POST /papers/import-url ───────────────────────────────────────────────────
+
+
+async def test_import_url_queues_ingest(async_client, mock_session):
+    with (
+        patch(
+            "backend.app.routers.papers.fetch_metadata_from_url",
+            return_value=None,
+        ),
+        patch(
+            "backend.app.routers.papers.ingest_paper.apply_async",
+            return_value=_mock_task(),
+        ),
+    ):
+        resp = await async_client.post(
+            "/papers/import-url",
+            json={
+                "url": "https://arxiv.org/pdf/2407.01985",
+                "trigger_ingest": True,
+            },
+        )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["status"] == "queued"
+    assert body["task_id"] == FAKE_TASK_ID
+
+
+async def test_import_url_uses_zotero_metadata(async_client, mock_session):
+    zotero_meta = {
+        "title": "Fetched Paper",
+        "authors": ["Alice Smith"],
+        "year": 2024,
+        "doi": "10.0001/test",
+        "journal": "Test Journal",
+        "source_path": "https://arxiv.org/pdf/2407.01985.pdf",
+    }
+    with (
+        patch(
+            "backend.app.routers.papers.fetch_metadata_from_url",
+            return_value=zotero_meta,
+        ),
+        patch(
+            "backend.app.routers.papers.ingest_paper.apply_async",
+            return_value=_mock_task(),
+        ),
+    ):
+        resp = await async_client.post(
+            "/papers/import-url",
+            json={
+                "url": "https://arxiv.org/pdf/2407.01985",
+                "trigger_ingest": True,
+            },
+        )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["status"] == "queued"
+
+
+async def test_import_url_metadata_only(async_client, mock_session):
+    with patch(
+        "backend.app.routers.papers.fetch_metadata_from_url",
+        return_value=None,
+    ):
+        resp = await async_client.post(
+            "/papers/import-url",
+            json={
+                "url": "https://arxiv.org/pdf/2407.01985",
+                "trigger_ingest": False,
+            },
+        )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["status"] == "metadata_only"
+    assert body["task_id"] == ""
+
+
+# ── arxiv URL helpers ────────────────────────────────────────────────────────
+
+
+def test_arxiv_abstract_url_from_pdf():
+    from backend.app.routers.papers import _arxiv_abstract_url
+
+    assert (
+        _arxiv_abstract_url("https://arxiv.org/pdf/2407.01985")
+        == "https://arxiv.org/abs/2407.01985"
+    )
+    assert (
+        _arxiv_abstract_url("https://arxiv.org/pdf/2407.01985v2")
+        == "https://arxiv.org/abs/2407.01985v2"
+    )
+
+
+def test_arxiv_abstract_url_passes_through():
+    from backend.app.routers.papers import _arxiv_abstract_url
+
+    assert (
+        _arxiv_abstract_url("https://arxiv.org/abs/2407.01985")
+        == "https://arxiv.org/abs/2407.01985"
+    )
+    assert (
+        _arxiv_abstract_url("https://example.com/paper.pdf")
+        == "https://example.com/paper.pdf"
+    )
+
+
+def test_arxiv_pdf_url_from_abstract():
+    from backend.app.routers.papers import _arxiv_pdf_url
+
+    assert (
+        _arxiv_pdf_url("https://arxiv.org/abs/2407.01985")
+        == "https://arxiv.org/pdf/2407.01985"
+    )
+    assert (
+        _arxiv_pdf_url("https://arxiv.org/abs/2407.01985v2")
+        == "https://arxiv.org/pdf/2407.01985v2"
+    )
+
+
+def test_arxiv_pdf_url_passes_through():
+    from backend.app.routers.papers import _arxiv_pdf_url
+
+    assert (
+        _arxiv_pdf_url("https://arxiv.org/pdf/2407.01985")
+        == "https://arxiv.org/pdf/2407.01985"
+    )
+    assert (
+        _arxiv_pdf_url("https://example.com/paper.pdf")
+        == "https://example.com/paper.pdf"
+    )

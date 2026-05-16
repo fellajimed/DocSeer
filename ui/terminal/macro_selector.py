@@ -70,7 +70,7 @@ class MacroSelectorModal(ModalScreen[str | None]):
         with Vertical(id="macro-dialog"):
             yield Static("  Macros", id="macro-title")
             yield Input(
-                placeholder="Type to filter macros…",
+                placeholder="Type to filter macros...",
                 id="macro-search",
                 value=self._query,
             )

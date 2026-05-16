@@ -241,7 +241,7 @@ class MainApp(App):
         self._set_focus()
 
     async def action_quit(self) -> None:
-        self.notify("Stopping all services…", severity="warning")
+        self.notify("Stopping all services...", severity="warning")
         self.exit()
 
 
@@ -255,7 +255,7 @@ def _stop_services() -> None:
     from docker_logs import SERVICES
 
     containers = [s.container for s in SERVICES]
-    print("\nStopping DocSeer services…", flush=True)
+    print("\nStopping DocSeer services...", flush=True)
     try:
         subprocess.run(
             ["docker", "stop"] + containers,

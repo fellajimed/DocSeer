@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 import logging
 from typing import Annotated
@@ -31,6 +32,23 @@ router = APIRouter(prefix="/papers", tags=["papers"])
 DB = Annotated[AsyncSession, Depends(get_db)]
 
 _NS = uuid.NAMESPACE_URL
+
+_ARXIV_PDF_RE = re.compile(r"https?://arxiv\.org/pdf/(\d+\.\d+(?:v\d+)?)")
+_ARXIV_ABS_RE = re.compile(r"https?://arxiv\.org/abs/(\d+\.\d+(?:v\d+)?)")
+
+
+def _arxiv_abstract_url(url: str) -> str:
+    m = _ARXIV_PDF_RE.match(url)
+    if m:
+        return f"https://arxiv.org/abs/{m.group(1)}"
+    return url
+
+
+def _arxiv_pdf_url(url: str) -> str:
+    m = _ARXIV_ABS_RE.match(url)
+    if m:
+        return f"https://arxiv.org/pdf/{m.group(1)}"
+    return url
 
 
 def _source_uuid(source_path: str) -> uuid.UUID:
@@ -248,9 +266,17 @@ async def import_from_url(body: UrlImportRequest, db: DB):
     with the returned metadata, and optionally queue ingestion.
     """
     settings = get_settings()
-    meta = await fetch_metadata_from_url(body.url, settings.zotero_url) or {}
-    meta.setdefault("url", body.url)
-    meta.setdefault("source_path", body.url)
+    url = body.url
+
+    # Try Zotero with the abstract page URL (e.g. arxiv abs page, not PDF)
+    # Zotero returns richer metadata (year, DOI, journal) than GROBID can.
+    zotero_url = _arxiv_abstract_url(url)
+    meta = await fetch_metadata_from_url(zotero_url, settings.zotero_url) or {}
+    meta.setdefault("url", url)
+
+    # Use Zotero's PDF URL if provided, otherwise the normalized PDF URL
+    pdf_url = meta.get("source_path") or _arxiv_pdf_url(url)
+    meta["source_path"] = pdf_url
 
     paper = Paper(
         status=PaperStatus.metadata_only,

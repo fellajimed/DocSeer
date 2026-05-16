@@ -37,22 +37,22 @@ async def test_stream_think_mode_binds_model(async_client, mock_agent):
         "/chat/stream", json={"query": "Think hard", "think_mode": True}
     )
     assert resp.status_code == 200
-    mock_agent.model.bind.assert_called_once_with(think=True)
+    mock_agent.model.bind.assert_called_once_with(reasoning=True)
 
 
 async def test_stream_no_think_mode_skips_bind(async_client, mock_agent):
     await async_client.post(
         "/chat/stream", json={"query": "No think", "think_mode": False}
     )
-    mock_agent.model.bind.assert_not_called()
+    mock_agent.model.bind.assert_called_once_with(reasoning=False)
 
 
 async def test_stream_thinking_events_emitted(async_client, mock_chain):
-    """When a chunk has additional_kwargs['thinking'], a thinking event is emitted."""
+    """When a chunk has additional_kwargs['reasoning_content'], a thinking event is emitted."""
 
     async def _astream_with_thinking(*args, **kwargs):
-        think_chunk = _make_chunk(content="", thinking="Let me reason...")
-        text_chunk = _make_chunk(content="Answer.", thinking="")
+        think_chunk = _make_chunk(content="", reasoning="Let me reason...")
+        text_chunk = _make_chunk(content="Answer.", reasoning="")
         yield think_chunk
         yield text_chunk
 
@@ -86,14 +86,14 @@ async def test_invoke_returns_response(async_client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["response"] == "Hello world."
-    assert body["thinking"] is None
+    assert body["thinking"] == ""
 
 
 async def test_invoke_think_mode_binds_model(async_client, mock_agent):
     await async_client.post(
         "/chat/invoke", json={"query": "Deep question", "think_mode": True}
     )
-    mock_agent.model.bind.assert_called_once_with(think=True)
+    mock_agent.model.bind.assert_called_once_with(reasoning=True)
 
 
 async def test_invoke_updates_chat_history(async_client, mock_agent):
@@ -154,10 +154,12 @@ def _parse_sse(text: str) -> list[dict]:
     return events
 
 
-def _make_chunk(content: str, thinking: str = "") -> object:
+def _make_chunk(content: str, reasoning: str = "") -> object:
     from unittest.mock import MagicMock
 
     chunk = MagicMock()
     chunk.content = content
-    chunk.additional_kwargs = {"thinking": thinking} if thinking else {}
+    chunk.additional_kwargs = (
+        {"reasoning_content": reasoning} if reasoning else {}
+    )
     return chunk
