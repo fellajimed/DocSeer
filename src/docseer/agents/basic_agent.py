@@ -61,7 +61,11 @@ class BasicAgent:
         self.chat_history.add_message(HumanMessage(content=query))
         self.chat_history.add_message(AIMessage(content=response))
         if self.max_turns is not None:
-            self.chat_history = self.chat_history[-2 * self.max_turns :]
+            # InMemoryChatMessageHistory is not subscriptable — trim via messages list
+            trimmed = self.chat_history.messages[-2 * self.max_turns :]
+            self.chat_history.clear()
+            for msg in trimmed:
+                self.chat_history.add_message(msg)
 
     def stream(self, query: str, context: list[str | Document]):
         context_md = docs_to_md(context)

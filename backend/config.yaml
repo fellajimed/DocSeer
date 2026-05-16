@@ -3,7 +3,7 @@ llm_model:
   temperature: 0.3
 
 small_llm_model:
-  model: "gemma3:4b-it-q4_K_M"
+  model: "llama3.2:3b"
   temperature: 1
 
 retriever:

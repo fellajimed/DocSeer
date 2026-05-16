@@ -1,0 +1,28 @@
+
+services:
+
+  ollama:
+    image: alpine:3.19
+    container_name: docseer-ollama
+    entrypoint: ["sleep"]
+    command: ["infinity"]
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 1s
+      timeout: 1s
+      retries: 1
+      start_period: 0s
+
+  model-puller:
+    image: alpine:3.19
+    container_name: docseer-model-puller
+    entrypoint: ["true"]
+    command: []
+
+  api:
+    environment:
+      DOCSEER_OLLAMA_BASE_URL: http://host.docker.internal:11434
+
+  worker:
+    environment:
+      DOCSEER_OLLAMA_BASE_URL: http://host.docker.internal:11434

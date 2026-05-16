@@ -1,13 +1,12 @@
-ChatbotWidget #body {
-    layout: horizontal;
-    height: 1fr;
-    background: transparent;
-}
-
 ChatbotWidget {
     width: 100%;
     height: 100%;
     layout: vertical;
+}
+
+ChatbotWidget #chat-container {
+    height: 1fr;
+    width: 100%;
 }
 
 ChatbotWidget Screen {
@@ -21,36 +20,80 @@ ChatbotWidget #chat-log {
     scrollbar-size-vertical: 1;
 }
 
-ChatbotWidget ChatMessage {
+ChatbotWidget UserChatMessage {
     width: 100%;
     height: auto;
     margin: 0 0 1 0;
 }
 
+ChatbotWidget BotChatMessage {
+    width: 80%;
+    height: auto;
+    margin: 0 0 1 0;
+    layout: vertical;
+}
 
-ChatbotWidget SubmitTextArea {
+ChatbotWidget BotChatMessage #bot-loading {
+    width: 8;
+    height: 1;
+    margin-left: 1;
+}
+
+ChatbotWidget BotChatMessage #thinking-collapsible {
+    border: round $warning 40%;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+ChatbotWidget BotChatMessage #thinking-collapsible CollapsibleTitle {
+    color: $warning 60%;
+    text-style: italic;
+}
+
+ChatbotWidget BotChatMessage #thinking-content {
+    color: $text-muted;
+    padding: 0 1;
+}
+
+ChatbotWidget BotChatMessage #response-content {
+    border: round $secondary;
+    padding: 0 1;
+}
+
+ChatbotWidget #input {
     dock: bottom;
     height: auto;
     max-height: 60%;
     width: 100%;
     margin: 0;
     padding: 0 1;
-    border: tall $primary; 
+    border: tall $primary;
 }
 
-ChatbotWidget ChatMessage LoadingIndicator {
-    align-horizontal: left;
-
-    width: 8 !important;
-    height: 1 !important;
-
-    content-align: left middle;
-
-    background: transparent;
-    margin-left: 1;
-    dock: left;
+ChatbotWidget #input.-macro-mode {
+    border: tall $accent;
 }
 
-ChatbotWidget ChatMessage LoadingIndicator > .loading-indicator--dot {
-    align-horizontal: left;
+ChatbotWidget #filter-bar {
+    dock: bottom;
+    height: 1;
+    padding: 0 2;
+    background: $primary 10%;
+    align: left middle;
+}
+
+ChatbotWidget #filter-chips {
+    width: 1fr;
+    color: $primary;
+    text-style: bold;
+}
+
+ChatbotWidget #btn-clear-filter {
+    width: auto;
+    min-width: 10;
+    height: 1;
+    border: none;
+    padding: 0 1;
+    background: $warning 20%;
+    color: $warning;
 }

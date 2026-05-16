@@ -1,7 +1,7 @@
 import asyncio
 import httpx
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, AsyncContextManager, Union
+from typing import AsyncIterator, AsyncContextManager, overload, Literal
 
 
 class AsyncRequester:
@@ -67,6 +67,26 @@ class AsyncRequester:
                     else:
                         raise exc
 
+    @overload
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        stream: Literal[True],
+        **kwargs,
+    ) -> AsyncContextManager[httpx.Response]: ...
+
+    @overload
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        stream: Literal[False] = False,
+        **kwargs,
+    ) -> httpx.Response: ...
+
     async def request(
         self,
         method: str,
@@ -74,7 +94,7 @@ class AsyncRequester:
         *,
         stream: bool = False,
         **kwargs,
-    ) -> Union[httpx.Response, AsyncContextManager[httpx.Response]]:
+    ) -> httpx.Response | AsyncContextManager[httpx.Response]:
         if stream:
             return self._stream(method, url, **kwargs)
 

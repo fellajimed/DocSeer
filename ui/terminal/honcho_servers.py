@@ -4,13 +4,21 @@ from textual.widgets import Log, Static
 from textual.app import ComposeResult
 
 
-PROCFILE = Path(__file__).resolve().absolute().parents[2] / "Procfile"
+ROOT_PATH = Path(__file__).resolve().absolute().parents[2]
+PROCFILE = ROOT_PATH / "Procfile"
+ENV_FILE = ROOT_PATH / ".env"
 
 
 class HonchoLogWidget(Static):
-    def __init__(self, procfile: str | None = None, **kwargs):
+    def __init__(
+        self,
+        procfile: str | None = None,
+        env_file: str | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.procfile = procfile or str(PROCFILE)
+        self.env_file = env_file
         self.process = None
         self.log_task = None
 
@@ -23,6 +31,8 @@ class HonchoLogWidget(Static):
         cmd = ["honcho", "start"]
         if self.procfile:
             cmd += ["-f", self.procfile]
+        if self.env_file:
+            cmd += ["-e", self.env_file]
 
         self.process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -33,6 +43,8 @@ class HonchoLogWidget(Static):
         self.log_task = asyncio.create_task(self._read_logs())
 
     async def _read_logs(self):
+        assert self.process is not None
+        assert self.process.stdout is not None
         while True:
             line = await self.process.stdout.readline()
             if not line:

@@ -32,6 +32,9 @@ class LocalFileStoreDB:
     def delete(self, document_id: str):
         self.docstore.mdelete(list(self.docstore.yield_keys(document_id)))
 
-    # TODO: maybe rename this method
     def get(self, ids: list[str]) -> list[str]:
-        return [content.decode("utf-8") for content in self.docstore.mget(ids)]
+        return [
+            content.decode("utf-8")
+            for content in self.docstore.mget(ids)
+            if content is not None
+        ]

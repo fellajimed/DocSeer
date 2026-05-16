@@ -1,254 +1,391 @@
-import os
-import sys
-import asyncio
+"""
+DocSeer CLI — run the full DocSeer stack.
+
+Usage:
+    docseer           Start services, launch TUI, then stop (default)
+    docseer run       Same as above
+    docseer start     Start all Docker services in background
+    docseer stop      Stop all Docker services
+    docseer tui       Launch TUI (assumes services already running)
+    docseer ingest    Ingest one or more papers from URLs, PDF paths, or .bib files
+    docseer --version Show version
+"""
+
+from __future__ import annotations
+
 import argparse
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
-from langchain_ollama.llms import OllamaLLM
-from langchain_ollama import OllamaEmbeddings
-
-from . import CACHE_FOLDER
-from .config import read_config, get_main_config
-from .documents import Documents
-from .converters import DocConverter
-from .chunkers import ParentChildChunker
-from .databases import ChromaVectorDB, LocalFileStoreDB
-from .retrievers import Retriever, MultiStepsRetriever
-from .agents import BasicAgent
-from .ui import ConsoleUI
-
 import logging
+import os
+import shutil
+import signal
+import subprocess
+import sys
+from functools import cache
+from pathlib import Path
+
+import httpx
+import yaml
 
 
-def cache_source(documents, future):
-    try:
-        doc = future.result()
-        documents.cache_source(doc)
-    except Exception as e:
-        print(e)
+@cache
+def _project_root() -> Path:
+    return Path(__file__).resolve().parent.parent.parent
 
 
-def disable_logs():
-    # set root logger
-    logging.basicConfig(level=logging.ERROR)
+@cache
+def _check_docker() -> None:
+    if shutil.which("docker") is None:
+        print(
+            "Error: docker not found. Please install Docker Desktop.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    # explicitly adjust other loggers
-    for logger_name in logging.root.manager.loggerDict:
-        logging.getLogger(logger_name).setLevel(logging.ERROR)
 
-
-def get_query_or_end(console) -> str | None:
-    try:
-        query = console.ask()
-        if not query:
-            return
-        if query == "clear":
-            os.system("cls" if os.name == "nt" else "clear")
-            return
-    except (KeyboardInterrupt, EOFError):
-        res = input("\nDo you really want to exit ([y]/n)? ").lower()
-        if res in ("", "y", "yes"):
-            console.answer("Bye Bye!")
-            sys.exit()
+def _load_config(path: str) -> dict[str, str]:
+    raw = yaml.safe_load(Path(path).read_text()) or {}
+    env: dict[str, str] = {}
+    for k, v in raw.items():
+        if v is None:
+            continue
+        val = str(v)
+        if k.startswith("DOCSEER_"):
+            env[k] = val
         else:
-            return
-
-    return query
-
-
-def process_document(document, document_id, doc_converter, chunker, retriever):
-    data = doc_converter.convert(document)
-    content = data.pop("content", "")
-
-    chunks = chunker.chunk(content, document_id)
-
-    retriever.populate(**chunks, metadata=data)
-
-    return document
+            env["DOCSEER_" + k.upper()] = val
+    return env
 
 
-def chabot(agent, retriever):
-    console = ConsoleUI(is_table=True, status_desc="")
-
-    while True:
-        query = get_query_or_end(console)
-        if query is None:
-            continue
-
-        with console.console.status("Retrieving ...", spinner="dots"):
-            context = retriever.retrieve(query)
-
-        with console:
-            for chunk in agent.stream(query, context):
-                console.stream(chunk)
+def _merge_env(overrides: dict[str, str]) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(overrides)
+    return env
 
 
-def main(
-    documents,
-    doc_converter,
-    chunker,
-    retriever,
-    agent,
-    n_workers: int | None = None,
-    index: bool = False,
-):
-    max_workers = n_workers or os.cpu_count() or 4
-    callback = partial(cache_source, documents)
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(
-                process_document,
-                doc,
-                doc_id,
-                doc_converter,
-                chunker,
-                retriever,
-            )
-            for doc, doc_id in documents.docs_to_process
+def _compose(
+    args: list[str], native: bool = False, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
+    root = _project_root()
+    cmd = ["docker", "compose"]
+    if native:
+        cmd += [
+            "-f",
+            "docker-compose.yaml",
+            "-f",
+            "docker-compose.native-ollama.yml",
         ]
-
-        for future in futures:
-            future.add_done_callback(callback)
-
-    if not index:
-        # disable logs for a clean UI
-        disable_logs()
-        chabot(agent, retriever)
+    return subprocess.run(
+        cmd + args, cwd=root, env=_merge_env(env) if env else None
+    )
 
 
-async def aprocess_document(
-    document, document_id, doc_converter, chunker, retriever
-):
-    data = await doc_converter.aconvert(document)
-    content = data.pop("content", "")
+SERVICES = [
+    "postgres",
+    "redis",
+    "chromadb",
+    "ollama",
+    "grobid",
+    "zotero",
+    "api",
+    "worker",
+    "flower",
+]
 
-    chunks = await chunker.achunk(content, document_id)
+PORTS = """\
+  API       http://localhost:8000
+  Flower    http://localhost:5555
+  GROBID    http://localhost:8070
+  Zotero    http://localhost:1969
+  PostgreSQL        5432  (Docker internal)
+  Redis             6379  (Docker internal)
+  ChromaDB          8000  (Docker internal)
+  Ollama            11434 (Docker internal)"""
 
-    await retriever.apopulate(**chunks, metadata=data)
 
-    return document
+def _print_started() -> None:
+    print("DocSeer is running")
+    print(PORTS)
+    print()
 
 
-async def achabot(agent, retriever):
-    console = ConsoleUI(is_table=True, status_desc="")
+def cmd_start(args: argparse.Namespace) -> None:
+    native = getattr(args, "native", False)
+    _check_docker()
+    cfg = _load_config(args.config) if getattr(args, "config", None) else {}
+    if cfg:
+        print(f"Loaded config: {args.config}")
+    print("Starting DocSeer services...")
+    wait = ["--wait"] if not getattr(args, "no_wait", False) else []
+    up_args = ["up", "-d"] + wait
+    if getattr(args, "rebuild", False):
+        up_args += ["--build"]
+    try:
+        r = _compose(up_args + SERVICES, native=native, env=cfg or None)
+        if r.returncode != 0:
+            print("Failed to start services.", file=sys.stderr)
+            sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted during startup.")
+        sys.exit(1)
+    _print_started()
 
-    while True:
-        query = get_query_or_end(console)
-        if query is None:
+
+def cmd_stop(args: argparse.Namespace) -> None:
+    native = getattr(args, "native", False)
+    print("Stopping DocSeer services...")
+    try:
+        _compose(["down"], native=native)
+    except KeyboardInterrupt:
+        pass
+    print("DocSeer services stopped.")
+
+
+def cmd_clean(args: argparse.Namespace) -> None:
+    native = getattr(args, "native", False)
+    print("Wiping all DocSeer volumes...")
+    try:
+        _compose(["down", "-v"], native=native)
+    except KeyboardInterrupt:
+        pass
+    print("Volumes removed.")
+
+
+def cmd_tui(args: argparse.Namespace) -> None:
+    root = _project_root()
+    sys.path.insert(0, str(root / "ui" / "terminal"))
+    sys.path.insert(0, str(root / "src"))
+
+    logging.basicConfig(level=logging.DEBUG, handlers=[])
+
+    from main import MainApp  # ty: ignore[unresolved-import]
+
+    app = MainApp()
+
+    def _sigterm(s: int, f: object) -> None:
+        app.exit()
+
+    signal.signal(signal.SIGTERM, _sigterm)
+
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        pass
+
+
+def cmd_ingest(args: argparse.Namespace) -> None:
+    """Ingest papers from URLs, PDF paths, or .bib files via the API."""
+    api_url = os.environ.get(
+        "DOCSEER_API_URL", "http://localhost:8000"
+    ).rstrip("/")
+
+    for source in args.sources:
+        source = source.strip()
+        if not source:
             continue
 
-        with console.console.status("Retrieving ...", spinner="dots"):
-            context = await retriever.aretrieve(query)
-
-        with console:
-            async for chunk in agent.astream(query, context):
-                console.stream(chunk)
-
-
-async def amain(
-    documents,
-    doc_converter,
-    chunker,
-    retriever,
-    agent,
-    index: bool = False,
-):
-    callback = partial(cache_source, documents)
-
-    async with asyncio.TaskGroup() as tg:
-        for doc, doc_id in documents.docs_to_process:
-            task = tg.create_task(
-                aprocess_document(
-                    doc, doc_id, doc_converter, chunker, retriever
-                )
-            )
-            task.add_done_callback(callback)
-
-    if not index:
-        # disable logs for a clean UI
-        disable_logs()
-        await achabot(agent, retriever)
+        if source.endswith(".bib"):
+            _ingest_bibtex(api_url, source)
+        elif source.startswith(("http://", "https://")):
+            _ingest_url(api_url, source, args.trigger_ingest)
+        else:
+            _ingest_path(api_url, source)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser("DocSeer")
-
-    parser.add_argument("-s", "--source", type=str, nargs="*", default=[])
-    parser.add_argument("--config", type=dict, default=None)
-    parser.add_argument("--n-workers", type=int, default=None)
-    parser.add_argument("--keep-db", action="store_true")
-    parser.add_argument("--sync", action="store_true")
-    parser.add_argument("--index", action="store_true")
-    parser.add_argument("--show-logs", action="store_true")
-    parser.add_argument("--version", action="store_true")
-
-    return parser.parse_args()
-
-
-def run():
-    args = parse_args()
-
-    if args.version:
-        from . import __version__ as v
-
-        print(f"DocSeer version: {v}")
+def _ingest_bibtex(api_url: str, path: str) -> None:
+    try:
+        bibtex = Path(path).read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"  [ERROR] reading {path}: {e}")
         return
 
-    if not (args.show_logs or args.index):
-        disable_logs()
-
-    user_config = read_config(args.config) if args.config is not None else None
-    config = get_main_config(user_config)
-
-    model_embeddings = OllamaEmbeddings(**config["model_embeddings"])
-    llm_model = OllamaLLM(**config["llm_model"])
-    small_llm_model = (
-        None
-        if config.get("small_llm_model") is None
-        else OllamaLLM(**config["small_llm_model"])
-    )
-
-    documents = Documents(args.source)
-    doc_converter = DocConverter()
-    chunker = ParentChildChunker()
-
-    batch_size = config.get("chromavectordb", dict()).get("batch_size", 128)
-    vector_db = ChromaVectorDB(
-        model_embeddings, batch_size, CACHE_FOLDER / "embeds_db"
-    )
-    docstore = LocalFileStoreDB(CACHE_FOLDER / "docstore_db")
-
-    topk = config.get("retriever", dict()).get("topk", 3)
-    base_retriever = Retriever(
-        vector_db=vector_db, docstore=docstore, topk=topk
-    )
-    retriever = MultiStepsRetriever.init(
-        base_retriever=base_retriever, llm=small_llm_model
-    )
-    agent = BasicAgent(llm_model)
-
-    if args.sync:
-        main(
-            documents,
-            doc_converter,
-            chunker,
-            retriever,
-            agent,
-            args.n_workers,
-            args.index,
+    try:
+        resp = httpx.post(
+            f"{api_url}/papers/import-bibtex",
+            json={"bibtex": bibtex, "trigger_ingest": True},
+            timeout=120.0,
         )
+        resp.raise_for_status()
+        results = resp.json()
+    except Exception as e:
+        print(f"  [ERROR] importing {path}: {e}")
+        return
+
+    print(
+        f"  BibTeX {path} — {len(results)} entr{'y' if len(results) == 1 else 'ies'}"
+    )
+    for r in results:
+        _print_result(r)
+
+
+def _ingest_url(api_url: str, url: str, trigger: bool) -> None:
+    try:
+        resp = httpx.post(
+            f"{api_url}/papers/import-url",
+            json={"url": url, "trigger_ingest": trigger},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+    except Exception as e:
+        print(f"  [ERROR] {url}: {e}")
+        return
+
+    print(f"  URL {url}")
+    _print_result(result)
+
+
+def _ingest_path(api_url: str, path: str) -> None:
+    try:
+        resp = httpx.post(
+            f"{api_url}/papers/",
+            json={"source_path": path},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+    except Exception as e:
+        print(f"  [ERROR] {path}: {e}")
+        return
+
+    print(f"  File {path}")
+    _print_result(result)
+
+
+def _print_result(r: dict) -> None:
+    paper_id = r.get("paper_id", "?")
+    status = r.get("status", "?")
+    task_id = r.get("task_id", "")
+    if status in ("queued", "processing"):
+        print(f"    └─ id={paper_id}  status={status}  task={task_id}")
+    elif status == "already_ingested":
+        print(f"    └─ id={paper_id}  already ingested (task={task_id})")
+    elif status == "metadata_only":
+        print(f"    └─ id={paper_id}  metadata saved (no source to ingest)")
     else:
-        asyncio.run(
-            amain(
-                documents,
-                doc_converter,
-                chunker,
-                retriever,
-                agent,
-                args.index,
-            )
-        )
+        print(f"    └─ id={paper_id}  status={status}")
+
+
+def cmd_run(args: argparse.Namespace) -> None:
+    native = getattr(args, "native", False)
+    _check_docker()
+    cfg = _load_config(args.config) if getattr(args, "config", None) else {}
+    if cfg:
+        print(f"Loaded config: {args.config}")
+    print("Starting DocSeer services...")
+    wait = ["--wait"] if not getattr(args, "no_wait", False) else []
+    up_args = ["up", "-d"] + wait
+    if getattr(args, "rebuild", False):
+        up_args += ["--build"]
+    try:
+        r = _compose(up_args + SERVICES, native=native, env=cfg or None)
+        if r.returncode != 0:
+            print("Failed to start services.", file=sys.stderr)
+            sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted during startup.")
+        sys.exit(1)
+    _print_started()
+    os.environ.update(cfg)
+    try:
+        cmd_tui(args)
+    finally:
+        if not getattr(args, "keep", False):
+            cmd_stop(args)
+
+
+def run() -> None:
+    parser = argparse.ArgumentParser(
+        "docseer",
+        description="DocSeer: RAG over research papers — FastAPI + Celery + ChromaDB + Ollama + Textual TUI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"""\
+Ports & services (when running):
+{PORTS}
+""",
+    )
+    parser.add_argument("--version", action="store_true", help="Show version")
+    sub = parser.add_subparsers(dest="command")
+
+    run_p = sub.add_parser(
+        "run", help="Start services, launch TUI, then stop (default)"
+    )
+    run_p.add_argument(
+        "--keep",
+        action="store_true",
+        help="Keep services running after TUI exits",
+    )
+    run_p.add_argument(
+        "--native",
+        action="store_true",
+        help="Use native macOS Ollama (Metal GPU)",
+    )
+    run_p.add_argument(
+        "--no-wait", action="store_true", help="Don't wait for healthchecks"
+    )
+    run_p.add_argument(
+        "--rebuild", action="store_true", help="Rebuild Docker images"
+    )
+    run_p.add_argument(
+        "-c", "--config", type=str, help="Path to YAML config file"
+    )
+
+    start_p = sub.add_parser("start", help="Start all Docker services")
+    start_p.add_argument(
+        "--native",
+        action="store_true",
+        help="Use native macOS Ollama (Metal GPU)",
+    )
+    start_p.add_argument(
+        "--no-wait", action="store_true", help="Don't wait for healthchecks"
+    )
+    start_p.add_argument(
+        "--rebuild", action="store_true", help="Rebuild Docker images"
+    )
+    start_p.add_argument(
+        "-c", "--config", type=str, help="Path to YAML config file"
+    )
+
+    sub.add_parser("stop", help="Stop all Docker services")
+    sub.add_parser("clean", help="Stop services and wipe all volumes")
+    sub.add_parser("tui", help="Launch TUI (services must already be running)")
+
+    ingest_p = sub.add_parser(
+        "ingest",
+        help="Ingest papers from URLs, PDF paths, or .bib files",
+    )
+    ingest_p.add_argument(
+        "sources",
+        nargs="+",
+        help="One or more sources (URL, path to PDF, path to .bib file)",
+    )
+    ingest_p.add_argument(
+        "--no-trigger",
+        dest="trigger_ingest",
+        action="store_false",
+        default=True,
+        help="For URLs: save metadata only, skip PDF ingestion",
+    )
+
+    args = parser.parse_args()
+
+    if args.version:
+        from docseer import __version__
+
+        print(f"DocSeer {__version__}")
+        return
+
+    if args.command == "start":
+        cmd_start(args)
+    elif args.command == "stop":
+        cmd_stop(args)
+    elif args.command == "clean":
+        cmd_clean(args)
+    elif args.command == "tui":
+        cmd_tui(args)
+    elif args.command == "ingest":
+        cmd_ingest(args)
+    else:
+        cmd_run(args)
 
 
 if __name__ == "__main__":

@@ -1,74 +1,83 @@
-import os
-
-# import shutil
 import asyncio
-from pathlib import Path
 from itertools import batched
+
 import chromadb
 from langchain_core.documents import Document
 
-from .. import CACHE_FOLDER
 
-
-def documents_to_dict(batch: list[Document], doc_metadata: dict):
-    d_batch = dict(ids=[], documents=[], metadatas=[])
-
+def _documents_to_dict(batch: list[Document], doc_metadata: dict) -> dict:
+    d_batch: dict[str, list] = dict(ids=[], documents=[], metadatas=[])
     for doc in batch:
         d_batch["ids"].append(doc.id)
         d_batch["documents"].append(doc.page_content)
         d_batch["metadatas"].append(doc.metadata | doc_metadata)
-
     return d_batch
 
 
-def chroma_results_to_documents(results) -> list[Document]:
+def _chroma_results_to_documents(results) -> list[Document]:
     docs = []
     for doc, meta in zip(
-        results.get("documents", [[]])[0], results.get("metadatas", [[]])[0]
+        results.get("documents", [[]])[0],
+        results.get("metadatas", [[]])[0],
     ):
         docs.append(Document(page_content=doc, metadata=meta))
     return docs
 
 
 class ChromaVectorDB:
-    def __init__(self, model_embeddings, batch_size, path_db):
+    COLLECTION_NAME = "vector_db"
+
+    def __init__(
+        self,
+        model_embeddings,
+        batch_size: int = 128,
+        path_db=None,
+        chroma_host: str = "localhost",
+        chroma_port: int = 8010,
+    ):
         self.model_embeddings = model_embeddings
         self.batch_size = batch_size
 
-        self._init_path(path_db)
-
-        self.client = chromadb.PersistentClient(path=self.path_db)
+        self.client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
         self.collection = self.client.get_or_create_collection(
-            name="vector_db"
+            name=self.COLLECTION_NAME
         )
 
-    def _init_path(self, path_db: str | os.PathLike[str] | None):
-        default_path = CACHE_FOLDER / "embeds_db"
-
-        path_db = path_db or default_path
-        path_db = Path(path_db).resolve().absolute()
-        path_db.mkdir(parents=True, exist_ok=True)
-
-        self.path_db = path_db if path_db.exists() else default_path
-        # shutil.rmtree(self.path_db, ignore_errors=True)
-
-    def add(self, chunks: list[Document], metadata: dict):
+    def add(self, chunks: list[Document], metadata: dict) -> None:
         for batch in batched(chunks, self.batch_size):
-            d_batch = documents_to_dict(batch, metadata)
+            d_batch = _documents_to_dict(list(batch), metadata)
             embeds = self.model_embeddings.embed_documents(
                 d_batch["documents"]
             )
             self.collection.add(embeddings=embeds, **d_batch)
 
-    async def aadd(self, chunks: list[Document], metadata: dict):
+    def delete(self, document_id: str) -> None:
+        self.collection.delete(where={"document_id": document_id})
+
+    def query(
+        self,
+        text: str,
+        n_results: int = 5,
+        paper_ids: list[str] | None = None,
+    ) -> list[Document]:
+        embeds = self.model_embeddings.embed_query(text)
+        kwargs: dict = dict(query_embeddings=[embeds], n_results=n_results)
+        if paper_ids:
+            kwargs["where"] = {"document_id": {"$in": paper_ids}}
+        results = self.collection.query(**kwargs)
+        return _chroma_results_to_documents(results)
+
+    async def aadd(self, chunks: list[Document], metadata: dict) -> None:
         tasks = [
-            self.embed_and_add(batch, metadata)
+            self._embed_and_add(list(batch), metadata)
             for batch in batched(chunks, self.batch_size)
         ]
         await asyncio.gather(*tasks)
 
-    async def embed_and_add(self, batch, metadata):
-        d_batch = documents_to_dict(batch, metadata)
+    async def _embed_and_add(
+        self, batch: list[Document], metadata: dict
+    ) -> None:
+        d_batch = _documents_to_dict(batch, metadata)
         embeds = await self.model_embeddings.aembed_documents(
             d_batch["documents"]
         )
@@ -76,19 +85,15 @@ class ChromaVectorDB:
             self.collection.add, embeddings=embeds, **d_batch
         )
 
-    def delete(self, document_id: str):
-        self.collection.delete(where={"document_id": document_id})
-
-    def query(self, text: str, n_results: int = 5) -> list[Document]:
-        embeds = self.model_embeddings.embed_documents(text)
-        results = self.collection.query(
-            query_embeddings=embeds, n_results=n_results
-        )
-        return chroma_results_to_documents(results)
-
-    async def aquery(self, text: str, n_results: int = 5):
-        embeds = await self.model_embeddings.aembed_documents(text)
-        results = await asyncio.to_thread(
-            self.collection.query, query_embeddings=embeds, n_results=n_results
-        )
-        return chroma_results_to_documents(results)
+    async def aquery(
+        self,
+        text: str,
+        n_results: int = 5,
+        paper_ids: list[str] | None = None,
+    ) -> list[Document]:
+        embeds = await self.model_embeddings.aembed_query(text)
+        kwargs: dict = dict(query_embeddings=[embeds], n_results=n_results)
+        if paper_ids:
+            kwargs["where"] = {"document_id": {"$in": paper_ids}}
+        results = await asyncio.to_thread(self.collection.query, **kwargs)
+        return _chroma_results_to_documents(results)

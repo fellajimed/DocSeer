@@ -1,31 +1,41 @@
 [project]
 name = "docseer"
-version = "0.3.1"
-description = "DocSeer: Summarize and understand your documents at a glance."
+version = "0.4.0"
+description = "DocSeer: RAG over research papers — FastAPI + Celery + ChromaDB + Ollama."
 authors = [
     {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
-]
-dependencies = [
-    "transformers>=4.52.1",
-    "rich>=14.0.0",
-    "PyMuPDF>=1.25.5",
-    "types-requests>=2.32.0.20250515",
-    "langchain>=0.3.25",
-    "langchain-ollama>=0.3.6",
-    "langchain-chroma>=0.2.5",
-    "sentence-transformers>=4.1.0",
-    "faiss-cpu>=1.11.0",
-    "hf-xet>=1.1.2",
-    "docling>=2.46.0",
-    "flashrank>=0.2.10",
-    "langchain-community>=0.3.27",
-    "pydantic-ai>=0.8.1",
-    "pydantic>=2.11.7",
-    "langchain-text-splitters>=1.0.0",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}
+
+dependencies = [
+    "langchain>=0.3.25",
+    "langchain-ollama>=0.3.6",
+    "langchain-chroma>=0.2.5",
+    "langchain-community>=0.3.27",
+    "langchain-text-splitters>=1.0.0",
+    "langchain-classic>=0.0.1",
+    "flashrank>=0.2.10",
+    "docling>=2.46.0",
+    "chromadb>=0.6.0",
+    "fastapi>=0.124.2",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.9.0",
+    "sqlalchemy[asyncio]>=2.0.41",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.10",
+    "alembic>=1.16.0",
+    "celery[redis]>=5.5.0",
+    "redis>=6.2.0",
+    "flower>=2.0.1",
+    "bibtexparser>=2.0.0b7",
+    "rich>=14.0.0",
+    "python-dotenv>=1.2.1",
+    "textual>=6.10.0",
+]
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -34,14 +44,20 @@ build-backend = "setuptools.build_meta"
 [project.scripts]
 docseer = "docseer.__main__:run"
 
-
 [dependency-groups]
 dev = [
     "mypy>=1.15.0",
-    "fastapi>=0.124.2",
-    "honcho>=2.0.0",
     "textual>=6.10.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "types-requests>=2.32.0.20250515",
+    "ruff>=0.15.12",
+    "ty>=0.0.35",
+    "pre-commit>=4.0.0",
 ]
+
+[tool.uv]
+package = true
 
 [tool.mypy]
 python_version = "3.12"
@@ -51,3 +67,14 @@ disallow_incomplete_defs = true
 follow_untyped_imports = true
 show_error_codes = true
 warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests that run real Docling/PDF conversion (deselect with '-m not slow')",
+    "requires_app: marks tests that require the running DocSeer API (deselect with '-m not requires_app')",
+]
+filterwarnings = [
+    "ignore:Field `generate_table_images` is deprecated:DeprecationWarning",
+]

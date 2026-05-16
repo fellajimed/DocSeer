@@ -30,28 +30,24 @@ def get_sitemap_urls(sitemap_url: str) -> list[str]:
     try:
         assert sitemap_url.endswith("sitemap.xml")
 
-        # Fetch sitemap URL
         response = requests.get(sitemap_url, timeout=10)
         response.raise_for_status()
 
-        # Parse XML content
         root = ET.fromstring(response.content)
 
-        # Handle different XML namespaces that sitemaps might use
         namespaces = (
             {"ns": root.tag.split("}")[0].strip("{")}
             if "}" in root.tag
             else ""
         )
 
-        # Extract URLs using namespace if present
         it = (
             root.findall(".//ns:loc", namespaces)
             if namespaces
             else root.findall(".//loc")
         )
 
-        return [elem.text for elem in it]
+        return [elem.text for elem in it if elem.text is not None]
 
     except requests.RequestException as e:
         raise ValueError(f"Failed to fetch sitemap: {str(e)}")

@@ -1,17 +1,15 @@
-import os
 import re
 import requests
 
 
 def get_file_bytes(path_or_url: str) -> bytes:
-    if os.path.isfile(path_or_url):
-        with open(path_or_url, "rb") as f:
-            data = f.read()
-    else:
+    if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
         response = requests.get(path_or_url, timeout=20)
         response.raise_for_status()
-        data = response.content
-    return data
+        return response.content
+    else:
+        with open(path_or_url, "rb") as f:
+            return f.read()
 
 
 def extract_metadata(url: str, doc_bytes: bytes):
@@ -24,16 +22,13 @@ def parse_authors(author_string: str) -> str:
         return ""
 
     authors = []
-    # BibTeX separates authors with " and "
     for a in author_string.split(" and "):
         a = a.strip()
 
         if "," in a:
-            # format: Last, First
             last, first = [p.strip() for p in a.split(",", 1)]
             authors.append(f"{first} {last}")
         else:
-            # format: First Last
             authors.append(a)
 
     return "; ".join(authors)
@@ -42,12 +37,25 @@ def parse_authors(author_string: str) -> str:
 def bibtex_to_dict(bibtex: str) -> dict:
     bibtex = bibtex.strip()
 
-    # Extract fields
     fields = re.findall(r"(\w+)\s*=\s*\{([^}]*)\}", bibtex)
     result = {k.lower(): v.strip() for k, v in fields}
 
     return {
-        "title": result.get("title", "").title(),
+        "title": _clean(result.get("title", "")),
         "author": parse_authors(result.get("author", "")),
         "abstract": result.get("abstract", ""),
+        "year": _parse_bibtex_year(result.get("year", "")),
     }
+
+
+def _clean(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.strip() or None
+
+
+def _parse_bibtex_year(value: str) -> int | None:
+    try:
+        return int(value.strip()[:4])
+    except (TypeError, ValueError, AttributeError):
+        return None

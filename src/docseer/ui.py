@@ -28,18 +28,18 @@ class ConsoleUI:
         return Prompt.ask(self.input_msg, show_default=False)
 
     def answer(self, response: str) -> None:
-        response = Markdown(response)
+        rendered = Markdown(response)
         if self.is_table:
             self.console.print(
                 Panel(
-                    response,
+                    rendered,
                     style=self.print_style,
                     width=self.width,
                     expand=self.width is None,
                 )
             )
         else:
-            self.console.print(response, style=self.print_style)
+            self.console.print(rendered, style=self.print_style)
 
     def stream(self, chunk: str):
         if self._status is not None:
@@ -60,7 +60,8 @@ class ConsoleUI:
         else:
             rendered = md
 
-        self._live.update(rendered)
+        if self._live is not None:
+            self._live.update(rendered)
 
     def _start_stream(self):
         if self._live is None:
@@ -72,7 +73,7 @@ class ConsoleUI:
 
         if self.show_stream_status and self._status is None:
             self._status = self.console.status(
-                self.status_desc, spinner="dots"
+                self.status_desc or "", spinner="dots"
             )
             self._status.__enter__()
 
