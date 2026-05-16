@@ -25,35 +25,63 @@ from textual.widgets import SelectionList
 from textual.widgets.selection_list import Selection
 
 
-def _entry_label(entry: Entry) -> str:
-    """Build a short display label for a BibTeX entry."""
+def _entry_display(entry: Entry) -> str:
+    """Rich-markup display label for a BibTeX entry."""
     fields = {f.key: f.value for f in entry.fields}
     title: str = str(fields.get("title") or entry.key or "").strip()
     year: str = str(fields.get("year") or "").strip()
     author_raw: str = str(fields.get("author") or "").strip()
-    # Take only the first author surname
+
     first_author = ""
     if author_raw:
         first = author_raw.split(" and ")[0].strip()
-        # "Last, First" → "Last"
         first_author = first.split(",")[0].strip()
 
-    parts: list[str] = []
+    parts = [f"[bold]{title}[/bold]"]
+
+    meta_parts = []
     if first_author:
         suffix = " et al." if " and " in author_raw else ""
-        parts.append(f"{first_author}{suffix}")
+        meta_parts.append(f"{first_author}{suffix}")
     if year:
-        parts.append(year)
-    prefix = "  ·  ".join(parts)
+        meta_parts.append(year)
+    if meta_parts:
+        parts.append(f"[dim]{' · '.join(meta_parts)}[/dim]")
 
-    # Truncate title so the row fits in ~72 chars
-    max_title = 50
-    if len(title) > max_title:
-        title = title[:max_title].rstrip() + "..."
+    return "  │  ".join(parts)
 
-    if prefix:
-        return f"{prefix}  —  {title}"
-    return title or entry.key
+
+def _entry_search_text(entry: Entry) -> str:
+    """Plain text for search filtering (no Rich markup)."""
+    fields = {f.key: f.value for f in entry.fields}
+    return " ".join(
+        str(fields.get(k, ""))
+        for k in (
+            "title",
+            "author",
+            "year",
+            "journal",
+            "publisher",
+            "doi",
+            "url",
+            "isbn",
+            "archiveprefix",
+            "eprint",
+            "booktitle",
+            "school",
+            "institution",
+            "organization",
+            "address",
+            "edition",
+            "series",
+            "volume",
+            "number",
+            "pages",
+            "note",
+            "annote",
+            "abstract",
+        )
+    ).lower() + (f" {entry.key}" if entry.key else "")
 
 
 class BibtexImportModal(ModalScreen[list[Entry] | None]):
@@ -106,13 +134,25 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
 
     #bib-select-row {
         height: auto;
-        align: left middle;
+        align: center middle;
         margin-bottom: 1;
     }
 
     #bib-select-row Button {
         margin: 0 1 0 0;
         min-width: 16;
+    }
+
+    #btn-bib-all {
+        background: $success 70%;
+        color: $text;
+        text-style: bold;
+    }
+
+    #btn-bib-none {
+        background: $error 70%;
+        color: $text;
+        text-style: bold;
     }
 
     #bib-list {
@@ -194,8 +234,8 @@ class BibtexImportModal(ModalScreen[list[Entry] | None]):
         self._visible_keys = []
         query_lc = query.lower()
         for entry in self._entries:
-            label = _entry_label(entry)
-            if not query_lc or query_lc in label.lower():
+            label = _entry_display(entry)
+            if not query_lc or query_lc in _entry_search_text(entry):
                 self._visible_keys.append(entry.key)
                 sel.add_option(
                     Selection(

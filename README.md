@@ -240,6 +240,8 @@ Once installed (`uv pip install -e .` or `pip install docseer`), the `docseer` c
 | `docseer stop` | Stop all Docker services |
 | `docseer clean` | Stop services and wipe all volumes |
 | `docseer tui` | Launch TUI only (services must already be running) |
+| `docseer ingest <src> [<src> ...]` | Ingest papers — URLs, PDF paths, or `.bib` files |
+| `docseer ingest --no-trigger <url>` | Save URL metadata only, skip PDF ingestion |
 | `docseer --version` | Show version |
 
 ---

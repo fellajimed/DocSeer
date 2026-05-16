@@ -165,8 +165,26 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
         self._visible_pids = []
         query_lc = query.lower()
         for paper in self._all_papers:
-            label = paper.get("title") or paper.get("source_path") or ""
-            if not query_lc or query_lc in label.lower():
+            haystack = " ".join(
+                str(v)
+                for v in [
+                    paper.get("title"),
+                    ", ".join(paper.get("authors", [])),
+                    paper.get("source_path"),
+                    paper.get("url"),
+                    paper.get("doi"),
+                    paper.get("arxiv_id"),
+                    paper.get("year"),
+                    paper.get("journal"),
+                    paper.get("publisher"),
+                    paper.get("bibtex_key"),
+                    " ".join(paper.get("tags", [])),
+                    paper.get("abstract"),
+                    paper.get("collection"),
+                ]
+                if v
+            ).lower()
+            if not query_lc or query_lc in haystack:
                 pid = str(paper["id"])
                 self._visible_pids.append(pid)
                 item = PaperListItem(pid, paper, show_status=False)

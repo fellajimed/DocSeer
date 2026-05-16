@@ -218,9 +218,26 @@ class DocumentsExplorerWidget(Static):
         selector.clear()
         filtered = []
         for p in self._papers.values():
-            title = (p.get("title") or "").lower()
-            authors = ", ".join(p.get("authors", [])[:2]).lower()
-            if q in title or q in authors:
+            haystack = " ".join(
+                str(v)
+                for v in [
+                    p.get("title"),
+                    ", ".join(p.get("authors", [])),
+                    p.get("source_path"),
+                    p.get("url"),
+                    p.get("doi"),
+                    p.get("arxiv_id"),
+                    p.get("year"),
+                    p.get("journal"),
+                    p.get("publisher"),
+                    p.get("bibtex_key"),
+                    " ".join(p.get("tags", [])),
+                    p.get("abstract"),
+                    p.get("collection"),
+                ]
+                if v
+            ).lower()
+            if q in haystack:
                 filtered.append(p)
         for item in self._build_paper_items(filtered):
             selector.append(item)

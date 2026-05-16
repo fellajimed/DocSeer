@@ -7,6 +7,7 @@ Usage:
     docseer start     Start all Docker services in background
     docseer stop      Stop all Docker services
     docseer tui       Launch TUI (assumes services already running)
+    docseer ingest    Ingest one or more papers from URLs, PDF paths, or .bib files
     docseer --version Show version
 """
 
@@ -22,6 +23,7 @@ import sys
 from functools import cache
 from pathlib import Path
 
+import httpx
 import yaml
 
 
@@ -170,6 +172,99 @@ def cmd_tui(args: argparse.Namespace) -> None:
         pass
 
 
+def cmd_ingest(args: argparse.Namespace) -> None:
+    """Ingest papers from URLs, PDF paths, or .bib files via the API."""
+    api_url = os.environ.get(
+        "DOCSEER_API_URL", "http://localhost:8000"
+    ).rstrip("/")
+
+    for source in args.sources:
+        source = source.strip()
+        if not source:
+            continue
+
+        if source.endswith(".bib"):
+            _ingest_bibtex(api_url, source)
+        elif source.startswith(("http://", "https://")):
+            _ingest_url(api_url, source, args.trigger_ingest)
+        else:
+            _ingest_path(api_url, source)
+
+
+def _ingest_bibtex(api_url: str, path: str) -> None:
+    try:
+        bibtex = Path(path).read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"  [ERROR] reading {path}: {e}")
+        return
+
+    try:
+        resp = httpx.post(
+            f"{api_url}/papers/import-bibtex",
+            json={"bibtex": bibtex, "trigger_ingest": True},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        results = resp.json()
+    except Exception as e:
+        print(f"  [ERROR] importing {path}: {e}")
+        return
+
+    print(
+        f"  BibTeX {path} — {len(results)} entr{'y' if len(results) == 1 else 'ies'}"
+    )
+    for r in results:
+        _print_result(r)
+
+
+def _ingest_url(api_url: str, url: str, trigger: bool) -> None:
+    try:
+        resp = httpx.post(
+            f"{api_url}/papers/import-url",
+            json={"url": url, "trigger_ingest": trigger},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+    except Exception as e:
+        print(f"  [ERROR] {url}: {e}")
+        return
+
+    print(f"  URL {url}")
+    _print_result(result)
+
+
+def _ingest_path(api_url: str, path: str) -> None:
+    try:
+        resp = httpx.post(
+            f"{api_url}/papers/",
+            json={"source_path": path},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+    except Exception as e:
+        print(f"  [ERROR] {path}: {e}")
+        return
+
+    print(f"  File {path}")
+    _print_result(result)
+
+
+def _print_result(r: dict) -> None:
+    paper_id = r.get("paper_id", "?")
+    status = r.get("status", "?")
+    task_id = r.get("task_id", "")
+    if status in ("queued", "processing"):
+        print(f"    └─ id={paper_id}  status={status}  task={task_id}")
+    elif status == "already_ingested":
+        print(f"    └─ id={paper_id}  already ingested (task={task_id})")
+    elif status == "metadata_only":
+        print(f"    └─ id={paper_id}  metadata saved (no source to ingest)")
+    else:
+        print(f"    └─ id={paper_id}  status={status}")
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     native = getattr(args, "native", False)
     _check_docker()
@@ -254,6 +349,23 @@ Ports & services (when running):
     sub.add_parser("clean", help="Stop services and wipe all volumes")
     sub.add_parser("tui", help="Launch TUI (services must already be running)")
 
+    ingest_p = sub.add_parser(
+        "ingest",
+        help="Ingest papers from URLs, PDF paths, or .bib files",
+    )
+    ingest_p.add_argument(
+        "sources",
+        nargs="+",
+        help="One or more sources (URL, path to PDF, path to .bib file)",
+    )
+    ingest_p.add_argument(
+        "--no-trigger",
+        dest="trigger_ingest",
+        action="store_false",
+        default=True,
+        help="For URLs: save metadata only, skip PDF ingestion",
+    )
+
     args = parser.parse_args()
 
     if args.version:
@@ -270,6 +382,8 @@ Ports & services (when running):
         cmd_clean(args)
     elif args.command == "tui":
         cmd_tui(args)
+    elif args.command == "ingest":
+        cmd_ingest(args)
     else:
         cmd_run(args)
 
