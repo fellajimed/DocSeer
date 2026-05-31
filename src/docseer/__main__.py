@@ -172,11 +172,41 @@ def cmd_tui(args: argparse.Namespace) -> None:
         pass
 
 
+def _api_reachable(api_url: str) -> bool:
+    try:
+        r = httpx.get(f"{api_url}/papers/", timeout=5.0)
+        r.raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
 def cmd_ingest(args: argparse.Namespace) -> None:
     """Ingest papers from URLs, PDF paths, or .bib files via the API."""
+    native = getattr(args, "native", False)
     api_url = os.environ.get(
         "DOCSEER_API_URL", "http://localhost:8000"
     ).rstrip("/")
+
+    if not _api_reachable(api_url):
+        _check_docker()
+        print("API not reachable — starting services...")
+        cfg = _load_config(getattr(args, "config", None) or "")
+        if cfg:
+            print(f"Loaded config: {args.config}")
+        wait = ["--wait"] if not getattr(args, "no_wait", False) else []
+        up_args = ["up", "-d"] + wait
+        if getattr(args, "rebuild", False):
+            up_args += ["--build"]
+        try:
+            r = _compose(up_args + SERVICES, native=native, env=cfg or None)
+            if r.returncode != 0:
+                print("Failed to start services.", file=sys.stderr)
+                sys.exit(1)
+        except KeyboardInterrupt:
+            print("\nInterrupted during startup.")
+            sys.exit(1)
+        print()
 
     for source in args.sources:
         source = source.strip()
@@ -304,6 +334,11 @@ Ports & services (when running):
 """,
     )
     parser.add_argument("--version", action="store_true", help="Show version")
+    parser.add_argument(
+        "--native",
+        action="store_true",
+        help="Run LLM inference via host Ollama with GPU acceleration",
+    )
     sub = parser.add_subparsers(dest="command")
 
     run_p = sub.add_parser(
@@ -317,7 +352,7 @@ Ports & services (when running):
     run_p.add_argument(
         "--native",
         action="store_true",
-        help="Use native macOS Ollama (Metal GPU)",
+        help="Run LLM inference via host Ollama with GPU acceleration",
     )
     run_p.add_argument(
         "--no-wait", action="store_true", help="Don't wait for healthchecks"
@@ -333,7 +368,7 @@ Ports & services (when running):
     start_p.add_argument(
         "--native",
         action="store_true",
-        help="Use native macOS Ollama (Metal GPU)",
+        help="Run LLM inference via host Ollama with GPU acceleration",
     )
     start_p.add_argument(
         "--no-wait", action="store_true", help="Don't wait for healthchecks"
@@ -364,6 +399,11 @@ Ports & services (when running):
         action="store_false",
         default=True,
         help="For URLs: save metadata only, skip PDF ingestion",
+    )
+    ingest_p.add_argument(
+        "--native",
+        action="store_true",
+        help="Run LLM inference via host Ollama with GPU acceleration",
     )
 
     args = parser.parse_args()
