@@ -56,6 +56,9 @@ dev = [
     "pre-commit>=4.0.0",
 ]
 
+[tool.setuptools.package-data]
+docseer = ["compose/*"]
+
 [tool.uv]
 package = true
 

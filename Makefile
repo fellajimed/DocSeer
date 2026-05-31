@@ -2,7 +2,9 @@
 
 # ── shared helpers ────────────────────────────────────────────────────────────
 
-COMPOSE_NATIVE = docker compose -f docker-compose.yaml -f docker-compose.native-ollama.yml
+COMPOSE_DIR = src/docseer/compose
+COMPOSE = docker compose -f $(COMPOSE_DIR)/docker-compose.yaml --project-directory .
+COMPOSE_NATIVE = $(COMPOSE) -f $(COMPOSE_DIR)/docker-compose.native-ollama.yml
 
 # ── environment ───────────────────────────────────────────────────────────────
 
@@ -18,29 +20,29 @@ export TZ
 
 ## Build all images
 build:
-	docker compose build
+	$(COMPOSE) build
 
 ## Start all backend services (detached)
 up: .env
 	@mkdir -p $(HOME)/.ollama
-	docker compose up -d --wait --build
+	$(COMPOSE) up -d --wait --build
 	@echo "All services healthy."
 
 ## Stop and remove containers (keep volumes)
 down:
-	docker compose down
+	$(COMPOSE) down
 
 ## Full teardown including volumes (destructive!)
 clean:
-	docker compose down -v
+	$(COMPOSE) down -v
 
 ## Run the TUI (starts backend first if not running)
 run: up
-	docker compose run --rm --build tui
+	$(COMPOSE) run --rm --build tui
 
 ## Tail logs for all backend services
 logs:
-	docker compose logs -f --tail=50
+	$(COMPOSE) logs -f --tail=50
 
 # ── native macOS Ollama (Metal GPU) ───────────────────────────────────────────
 # Use these targets when Ollama is installed and running on the host.
@@ -84,31 +86,31 @@ clean-db:
 
 ## Apply Alembic migrations to HEAD
 migrate: up
-	docker compose exec api uv run alembic upgrade head
+	$(COMPOSE) exec api uv run alembic upgrade head
 
 ## Auto-generate a new Alembic revision (requires description)
 # Usage: make revision MSG="add foo column"
 revision: up
-	docker compose exec api uv run alembic revision --autogenerate -m "$(MSG)"
+	$(COMPOSE) exec api uv run alembic revision --autogenerate -m "$(MSG)"
 
 # ── models ────────────────────────────────────────────────────────────────────
 
 ## Pull required Ollama models (LLM + embedding)
 pull-models: up
-	docker compose exec ollama ollama pull $${DOCSEER_LLM_MODEL:-gemma3:4b-it-q4_K_M}
-	docker compose exec ollama ollama pull $${DOCSEER_EMBEDDING_MODEL:-mxbai-embed-large}
+	$(COMPOSE) exec ollama ollama pull $${DOCSEER_LLM_MODEL:-gemma3:4b-it-q4_K_M}
+	$(COMPOSE) exec ollama ollama pull $${DOCSEER_EMBEDDING_MODEL:-mxbai-embed-large}
 	@echo "Models ready."
 
 # ── dev helpers ───────────────────────────────────────────────────────────────
 
 ## Open an interactive shell in the API container
 shell:
-	docker compose exec api bash
+	$(COMPOSE) exec api bash
 
 ## Run the test suite inside the API container
 test:
-	docker compose exec api uv run pytest tests/ -v
+	$(COMPOSE) exec api uv run pytest tests/ -v
 
 ## Show service status
 status:
-	docker compose ps
+	$(COMPOSE) ps

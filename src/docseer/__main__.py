@@ -62,17 +62,30 @@ def _merge_env(overrides: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def _compose_dir() -> Path:
+    dev_dir = _project_root()
+    if (dev_dir / "docker-compose.yaml").exists():
+        return dev_dir
+    return Path(__file__).resolve().parent / "compose"
+
+
 def _compose(
     args: list[str], native: bool = False, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess:
+    compose_dir = _compose_dir()
     root = _project_root()
-    cmd = ["docker", "compose"]
+    cmd = [
+        "docker",
+        "compose",
+        "-f",
+        str(compose_dir / "docker-compose.yaml"),
+        "--project-directory",
+        str(root),
+    ]
     if native:
         cmd += [
             "-f",
-            "docker-compose.yaml",
-            "-f",
-            "docker-compose.native-ollama.yml",
+            str(compose_dir / "docker-compose.native-ollama.yml"),
         ]
     return subprocess.run(
         cmd + args, cwd=root, env=_merge_env(env) if env else None

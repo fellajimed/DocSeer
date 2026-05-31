@@ -145,12 +145,8 @@ cp .env.example .env
 
 You can also pass a YAML config file at runtime with the `-c` / `--config` flag. Short names (without the `DOCSEER_` prefix) are automatically expanded:
 
-```bash
-docseer -c docseer.example.yaml
-```
-
 ```yaml
-# docseer.example.yaml
+# example config
 llm_model: qwen3.5:4b
 embedding_model: nomic-embed-text
 retriever_topk: 10
