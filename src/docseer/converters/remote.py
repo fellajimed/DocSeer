@@ -27,7 +27,5 @@ class RemoteContentExtractor:
         response.raise_for_status()
         data: dict[str, Any] = response.json()
         if "error" in data:
-            raise RuntimeError(
-                f"Remote converter error: {data['error']}"
-            )
+            raise RuntimeError(f"Remote converter error: {data['error']}")
         return data

@@ -25,7 +25,9 @@ def test_convert_returns_content(monkeypatch):
     client = TestClient(app)
     resp = client.post(
         "/convert",
-        files={"file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")},
+        files={
+            "file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")
+        },
     )
     assert resp.status_code == 200
     assert resp.json() == {"content": "# Hello\n\nWorld."}

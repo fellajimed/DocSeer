@@ -64,10 +64,12 @@ def _dispatch(paper: Paper) -> IngestResponse:
     """Fire-and-forget ingest task, update paper.celery_task_id in place."""
     task = ingest_paper.apply_async(args=[str(paper.id)], queue="ingest")
     paper.celery_task_id = task.id  # type: ignore[assignment]
-    paper.status = PaperStatus.pending  # ty:ignore[invalid-assignment]
+    paper.status = PaperStatus.pending  # ty: ignore[invalid-assignment]
     return IngestResponse(
-        paper_id=paper.id, task_id=task.id, status="queued"
-    )  # ty:ignore[invalid-argument-type]
+        paper_id=paper.id,  # ty: ignore[invalid-argument-type]
+        task_id=task.id,
+        status="queued",
+    )
 
 
 async def _get_or_404(db: AsyncSession, paper_id: uuid.UUID) -> Paper:

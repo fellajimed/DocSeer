@@ -16,7 +16,9 @@ _extractor: ContentExtractor | None = None
 def _get_extractor() -> ContentExtractor:
     global _extractor
     if _extractor is None:
-        logger.info("Initializing Docling ContentExtractor (this may take a moment)...")
+        logger.info(
+            "Initializing Docling ContentExtractor (this may take a moment)..."
+        )
         _extractor = ContentExtractor()
         logger.info("Docling ContentExtractor ready.")
     return _extractor
@@ -31,9 +33,7 @@ async def health():
 async def convert(file: UploadFile = File(...)):
     doc_bytes = await file.read()
     if not doc_bytes:
-        return JSONResponse(
-            status_code=400, content={"error": "Empty file"}
-        )
+        return JSONResponse(status_code=400, content={"error": "Empty file"})
     doc_path = file.filename or "document.pdf"
     try:
         extractor = _get_extractor()

@@ -84,10 +84,10 @@ def _set_progress(
         paper = session.get(Paper, paper_id)
         if paper is None:
             return
-        paper.status = status
+        paper.status = status  # ty: ignore[invalid-assignment]
         em = paper.extra_metadata or {}
         em["progress"] = progress_text  # ty: ignore[invalid-assignment]
-        paper.extra_metadata = em
+        paper.extra_metadata = em  # ty: ignore[invalid-assignment]
         for k, v in extra.items():
             setattr(paper, k, v)
         session.commit()
@@ -186,13 +186,14 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
             if paper is None:
                 raise RuntimeError(f"Paper {paper_id} disappeared mid-task")
 
-            paper.status = PaperStatus.done
-            paper.chunk_count = total_chunks
-            paper.date_processed = datetime.now(timezone.utc)
-            paper.error_message = None
+            paper.status = PaperStatus.done  # ty: ignore[invalid-assignment]
+            paper.chunk_count = total_chunks  # ty: ignore[invalid-assignment]
+            now = datetime.now(timezone.utc)
+            paper.date_processed = now  # ty: ignore[invalid-assignment]
+            paper.error_message = None  # ty: ignore[invalid-assignment]
             em = paper.extra_metadata or {}
             em.pop("progress", None)
-            paper.extra_metadata = em
+            paper.extra_metadata = em  # ty: ignore[invalid-assignment]
 
             for field, value in _backfill_metadata(grobid_raw).items():
                 setattr(paper, field, value)

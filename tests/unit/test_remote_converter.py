@@ -59,9 +59,7 @@ def test_raises_on_server_error_response():
 
     with patch("requests.post") as mock_post:
         mock_post.return_value.status_code = 200
-        mock_post.return_value.json.return_value = {
-            "error": "Something broke"
-        }
+        mock_post.return_value.json.return_value = {"error": "Something broke"}
 
         with pytest.raises(RuntimeError, match="Remote converter error"):
             extractor(doc_path="paper.pdf", doc_bytes=b"data")
