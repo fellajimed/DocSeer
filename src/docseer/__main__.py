@@ -20,6 +20,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from functools import cache
 from pathlib import Path
 
@@ -113,6 +114,56 @@ PORTS = """\
   Redis             6379  (Docker internal)
   ChromaDB          8000  (Docker internal)
   Ollama            11434 (Docker internal)"""
+
+
+CONVERTER_PORT = 8765
+
+
+def _start_converter_server() -> subprocess.Popen[bytes]:
+    """Start the Docling converter server on the host (Metal GPU accelerated)."""
+    print(f"Starting Docling converter server on port {CONVERTER_PORT}...")
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "docseer.converters.server",
+            "--port",
+            str(CONVERTER_PORT),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    url = f"http://127.0.0.1:{CONVERTER_PORT}/health"
+    deadline = time.monotonic() + 60
+    last_error = ""
+    while time.monotonic() < deadline:
+        try:
+            r = httpx.get(url, timeout=2.0)
+            if r.status_code == 200:
+                print("Docling converter server ready.")
+                return proc
+        except Exception as exc:
+            last_error = str(exc)
+        time.sleep(0.5)
+    proc.terminate()
+    proc.wait(timeout=5)
+    print(
+        f"Failed to start Docling converter server: {last_error}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+def _stop_converter_server(proc: subprocess.Popen[bytes] | None) -> None:
+    if proc is None:
+        return
+    print("Stopping Docling converter server...")
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
 
 
 def _print_started() -> None:
@@ -316,6 +367,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         print(f"Loaded config: {args.config}")
     print("Starting DocSeer services...")
     wait = ["--wait"] if not getattr(args, "no_wait", False) else []
+    converter = _start_converter_server() if native else None
     up_args = ["up", "-d"] + wait
     if getattr(args, "rebuild", False):
         up_args += ["--build"]
@@ -323,15 +375,18 @@ def cmd_run(args: argparse.Namespace) -> None:
         r = _compose(up_args + SERVICES, native=native, env=cfg or None)
         if r.returncode != 0:
             print("Failed to start services.", file=sys.stderr)
+            _stop_converter_server(converter)
             sys.exit(1)
     except KeyboardInterrupt:
         print("\nInterrupted during startup.")
+        _stop_converter_server(converter)
         sys.exit(1)
     _print_started()
     os.environ.update(cfg)
     try:
         cmd_tui(args)
     finally:
+        _stop_converter_server(converter)
         if not getattr(args, "keep", False):
             cmd_stop(args)
 

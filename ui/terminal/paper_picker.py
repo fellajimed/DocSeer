@@ -169,7 +169,7 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
                 str(v)
                 for v in [
                     paper.get("title"),
-                    ", ".join(paper.get("authors", [])),
+                    ", ".join(paper.get("authors") or []),
                     paper.get("source_path"),
                     paper.get("url"),
                     paper.get("doi"),
@@ -178,7 +178,7 @@ class PaperPickerModal(ModalScreen[list[tuple[str, str]] | None]):
                     paper.get("journal"),
                     paper.get("publisher"),
                     paper.get("bibtex_key"),
-                    " ".join(paper.get("tags", [])),
+                    " ".join(paper.get("tags") or []),
                     paper.get("abstract"),
                     paper.get("collection"),
                 ]

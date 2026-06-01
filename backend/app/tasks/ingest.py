@@ -20,7 +20,7 @@ from typing import Any
 from langchain_ollama import OllamaEmbeddings
 
 from docseer.chunkers import ParentChildChunker
-from docseer.converters import DocConverter
+from docseer.converters import DocConverter, RemoteContentExtractor
 from docseer.databases import ChromaVectorDB, LocalFileStoreDB
 from docseer.retrievers import Retriever
 
@@ -36,6 +36,13 @@ logger = logging.getLogger(__name__)
 @lru_cache(maxsize=1)
 def _converter() -> DocConverter:
     s = get_settings()
+    if s.converter_url:
+        logger.info("Using remote Docling converter at %s", s.converter_url)
+        remote = RemoteContentExtractor(s.converter_url)
+        return DocConverter(
+            url=f"{s.grobid_url}/api/processHeaderDocument",
+            content_extractor=remote,
+        )
     return DocConverter(url=f"{s.grobid_url}/api/processHeaderDocument")
 
 
@@ -63,30 +70,35 @@ def _retriever() -> Retriever:
     )
 
 
-def _update_status(
+def _set_progress(
     paper_id: uuid.UUID,
-    status: PaperStatus,
+    progress_text: str,
+    status: PaperStatus = PaperStatus.processing,
     **extra: Any,
 ) -> None:
+    """Update paper status + progress text in PostgreSQL.
+
+    Merges into *extra_metadata* so progress is visible via GET /papers/.
+    """
     with SyncSessionFactory() as session:
         paper = session.get(Paper, paper_id)
         if paper is None:
             return
-        paper.status = status  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+        paper.status = status
+        em = paper.extra_metadata or {}
+        em["progress"] = progress_text  # ty: ignore[invalid-assignment]
+        paper.extra_metadata = em
         for k, v in extra.items():
             setattr(paper, k, v)
         session.commit()
 
 
-def _backfill_metadata(
-    paper: Paper,
-    grobid_raw: dict[str, Any],
-) -> dict[str, Any]:
-    """Return only the fields that are missing on *paper* from GROBID."""
+def _backfill_metadata(grobid_raw: dict[str, Any]) -> dict[str, Any]:
+    """Return GROBID-extracted fields, preferring them over existing values."""
     meta = grobid_metadata_to_paper(grobid_raw)
     updates: dict[str, Any] = {}
     for field, value in meta.items():
-        if value and not getattr(paper, field, None):
+        if value:
             updates[field] = value
     return updates
 
@@ -131,10 +143,10 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
 
         logger.info("Purging existing embeddings for paper %s", paper_id)
         _retriever().delete_document(paper_id)
-
-        _update_status(paper_uuid, PaperStatus.processing)
+        _set_progress(paper_uuid, "Purging embeddings...")
 
         _progress("converting")
+        _set_progress(paper_uuid, "Converting...")
         result = asyncio.run(_converter().aconvert(source_path))
         content: str = result.pop("content", "")
         grobid_raw: dict[str, Any] = result
@@ -145,18 +157,27 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
             )
 
         _progress("chunking")
+        _set_progress(paper_uuid, "Chunking...")
         chunk_result = _chunker().chunk(content, paper_id)
         chunks = chunk_result["chunks"]
         parent_ids = chunk_result["parent_ids"]
         parent_chunks = chunk_result["parent_chunks"]
 
         _progress("embedding")
+        total_chunks = len(chunks)
+
+        def _embed_progress(done: int, total: int) -> None:
+            pct = done * 100 // total if total else 0
+            _set_progress(paper_uuid, f"Embedding ({pct}%)...")
+
+        _set_progress(paper_uuid, "Embedding (0%)...")
         asyncio.run(
             _retriever().apopulate(
                 chunks=chunks,
                 metadata={"document_id": paper_id},
                 parent_ids=parent_ids,
                 parent_chunks=parent_chunks,
+                progress_callback=_embed_progress,
             )
         )
 
@@ -165,24 +186,28 @@ def ingest_paper(self, paper_id: str) -> dict[str, Any]:
             if paper is None:
                 raise RuntimeError(f"Paper {paper_id} disappeared mid-task")
 
-            paper.status = PaperStatus.done  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
-            paper.chunk_count = len(chunks)  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
-            paper.date_processed = datetime.now(timezone.utc)  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
-            paper.error_message = None  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
+            paper.status = PaperStatus.done
+            paper.chunk_count = total_chunks
+            paper.date_processed = datetime.now(timezone.utc)
+            paper.error_message = None
+            em = paper.extra_metadata or {}
+            em.pop("progress", None)
+            paper.extra_metadata = em
 
-            for field, value in _backfill_metadata(paper, grobid_raw).items():
+            for field, value in _backfill_metadata(grobid_raw).items():
                 setattr(paper, field, value)
 
             session.commit()
 
-        logger.info("Ingested paper %s — %d chunks", paper_id, len(chunks))
-        return {"paper_id": paper_id, "chunk_count": len(chunks)}
+        logger.info("Ingested paper %s — %d chunks", paper_id, total_chunks)
+        return {"paper_id": paper_id, "chunk_count": total_chunks}
 
     except Exception as exc:
         logger.exception("Ingestion failed for paper %s: %s", paper_id, exc)
-        _update_status(
+        _set_progress(
             paper_uuid,
-            PaperStatus.failed,
+            f"Failed: {str(exc)[:80]}",
+            status=PaperStatus.failed,
             error_message=str(exc)[:2000],
         )
         raise self.retry(exc=exc)

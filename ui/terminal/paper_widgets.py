@@ -24,7 +24,7 @@ def _paper_rich(paper: dict, selected: bool, show_status: bool = True) -> str:
             paper.get("source_path") or paper.get("url") or str(paper["id"])
         )
 
-    authors = paper.get("authors", [])
+    authors = paper.get("authors") or []
     author_str = ", ".join(authors[:2])
     if len(authors) > 2:
         author_str += " et al."
@@ -81,8 +81,9 @@ class PaperListItem(ListItem):
         )
 
     def refresh_display(self) -> None:
-        widget = self.query_one(f"#paper_{self.paper_id}", Static)
-        widget.update(_paper_rich(self.paper, self.selected, self.show_status))
+        self.query_one(f"#paper_{self.paper_id}", Static).update(
+            _paper_rich(self.paper, self.selected, self.show_status)
+        )
         if self.selected:
             self.add_class("-selected")
         else:

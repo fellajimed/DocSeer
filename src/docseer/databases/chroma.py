@@ -1,4 +1,5 @@
 import asyncio
+import collections.abc
 from itertools import batched
 
 import chromadb
@@ -67,19 +68,32 @@ class ChromaVectorDB:
         results = self.collection.query(**kwargs)
         return _chroma_results_to_documents(results)
 
-    async def aadd(self, chunks: list[Document], metadata: dict) -> None:
+    async def aadd(
+        self,
+        chunks: list[Document],
+        metadata: dict,
+        progress_callback: collections.abc.Callable[[int, int], None]
+        | None = None,
+    ) -> None:
+        batches = list(batched(chunks, self.batch_size))
         tasks = [
-            self._embed_and_add(list(batch), metadata)
-            for batch in batched(chunks, self.batch_size)
+            self._embed_and_add(list(batch), metadata) for batch in batches
         ]
-        await asyncio.gather(*tasks)
+        if progress_callback is None:
+            await asyncio.gather(*tasks)
+        else:
+            total = len(tasks)
+            for i, coro in enumerate(asyncio.as_completed(tasks)):
+                await coro
+                progress_callback(i + 1, total)
 
     async def _embed_and_add(
         self, batch: list[Document], metadata: dict
     ) -> None:
         d_batch = _documents_to_dict(batch, metadata)
-        embeds = await self.model_embeddings.aembed_documents(
-            d_batch["documents"]
+        embeds = await asyncio.to_thread(
+            self.model_embeddings.embed_documents,
+            d_batch["documents"],
         )
         await asyncio.to_thread(
             self.collection.add, embeddings=embeds, **d_batch

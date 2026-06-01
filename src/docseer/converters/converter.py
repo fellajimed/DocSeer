@@ -1,18 +1,42 @@
 import asyncio
 import logging
+from typing import Any, Protocol
 
 from .utils import get_file_bytes
 from .content_extractor import ContentExtractor
 from .metadata_extractor import MetadataExtractor
 
+
+class ContentExtractorProto(Protocol):
+    """Protocol for content extractors (local Docling or remote HTTP)."""
+
+    def __call__(
+        self, *, doc_path: str, doc_bytes: bytes, **kwargs: Any
+    ) -> dict[str, Any]: ...
+
+
 logger = logging.getLogger(__name__)
 
 
 class DocConverter:
-    """PDF → Markdown + metadata (GROBID for metadata, Docling for content)."""
+    """PDF → Markdown + metadata (GROBID for metadata, Docling for content).
 
-    def __init__(self, url: str | None = None):
-        self._content_extractor = ContentExtractor()
+    Parameters
+    ----------
+    url:
+        GROBID endpoint URL for metadata extraction.
+    content_extractor:
+        Optional replacement for the default Docling ContentExtractor.
+        Used by ``RemoteContentExtractor`` when ``--native`` is active so
+        PDF→Markdown conversion runs on the host with Metal GPU.
+    """
+
+    def __init__(
+        self,
+        url: str | None = None,
+        content_extractor: ContentExtractorProto | None = None,
+    ):
+        self._content_extractor = content_extractor or ContentExtractor()
         self._metadata_extractor = MetadataExtractor(url=url)
 
     def convert(self, doc_path: str) -> dict:

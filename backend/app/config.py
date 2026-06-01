@@ -32,6 +32,8 @@ class Settings(BaseSettings):
 
     zotero_url: str = "http://zotero:1969"
 
+    converter_url: str = ""
+
     docstore_path: str = "/data/docstore"
 
     retriever_topk: int = 5

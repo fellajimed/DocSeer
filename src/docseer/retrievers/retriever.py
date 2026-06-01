@@ -1,4 +1,5 @@
 import asyncio
+import collections.abc
 from typing import Any, Optional
 from pydantic import ConfigDict, Field
 from langchain_core.documents import Document
@@ -38,8 +39,12 @@ class Retriever(BaseRetriever):
         metadata: dict[str, str],
         parent_ids: list[str] | None,
         parent_chunks: list[Document] | None,
+        progress_callback: collections.abc.Callable[[int, int], None]
+        | None = None,
     ) -> None:
-        await self.vector_db.aadd(chunks, metadata)
+        await self.vector_db.aadd(
+            chunks, metadata, progress_callback=progress_callback
+        )
 
         if not (
             self.docstore is None

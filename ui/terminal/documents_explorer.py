@@ -75,6 +75,8 @@ class DocumentsExplorerWidget(Static):
         self._task_watchers: dict[str, asyncio.Task[None]] = {}
         self._requester = AsyncRequester()
         self._pending_bib_entries: list[Entry] = []
+        self._fast_refresh: bool = False
+        self._loading: bool = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="main_container"):
@@ -109,8 +111,9 @@ class DocumentsExplorerWidget(Static):
             yield Button("Add Paper", id="add_btn", variant="success")
 
     async def on_mount(self) -> None:
+        self._refresh_timer = self.set_interval(1, self._load_papers)
+        self._refresh_timer.pause()
         asyncio.create_task(self._load_papers())
-        self.set_interval(5, self._load_papers)
 
     async def on_unmount(self) -> None:
         for watcher in self._task_watchers.values():
@@ -131,6 +134,9 @@ class DocumentsExplorerWidget(Static):
         return items
 
     async def _load_papers(self) -> None:
+        if self._loading:
+            return
+        self._loading = True
         try:
             response = await self._requester.request(
                 method="GET",
@@ -142,11 +148,20 @@ class DocumentsExplorerWidget(Static):
 
             self._papers = {p["id"]: p for p in papers}
 
+            has_active = False
             for paper in papers:
                 status = paper.get("status")
                 task_id = paper.get("celery_task_id")
                 if status in {"pending", "processing"} and task_id:
+                    has_active = True
                     self._watch_task(task_id)
+
+            if has_active and not self._fast_refresh:
+                self._fast_refresh = True
+                self._refresh_timer.resume()
+            elif not has_active and self._fast_refresh:
+                self._fast_refresh = False
+                self._refresh_timer.pause()
 
             selector = self.query_one("#doc_selector", ListView)
             selector.clear()
@@ -159,6 +174,8 @@ class DocumentsExplorerWidget(Static):
 
         except Exception as exc:
             self.notify(f"Failed to load papers: {exc}", severity="error")
+        finally:
+            self._loading = False
 
     def _watch_task(self, task_id: str) -> None:
         if not task_id or task_id in self._task_watchers:
@@ -222,7 +239,7 @@ class DocumentsExplorerWidget(Static):
                 str(v)
                 for v in [
                     p.get("title"),
-                    ", ".join(p.get("authors", [])),
+                    ", ".join(p.get("authors") or []),
                     p.get("source_path"),
                     p.get("url"),
                     p.get("doi"),
@@ -231,7 +248,7 @@ class DocumentsExplorerWidget(Static):
                     p.get("journal"),
                     p.get("publisher"),
                     p.get("bibtex_key"),
-                    " ".join(p.get("tags", [])),
+                    " ".join(p.get("tags") or []),
                     p.get("abstract"),
                     p.get("collection"),
                 ]
@@ -413,6 +430,7 @@ class DocumentsExplorerWidget(Static):
         await self._load_papers()
 
     @on(Button.Pressed, "#add_btn")
+    @on(Input.Submitted, "#new_item_input")
     async def _add_paper(self) -> None:
         raw = self.query_one("#new_item_input", Input).value.strip()
         if not raw:
