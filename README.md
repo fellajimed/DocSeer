@@ -62,7 +62,7 @@ That's it. No Python, Ollama, or Postgres installation needed on the host — un
 
 ```bash
 # Install from PyPI
-uv pip install docseer
+uv pip install docseer --prerelease=allow
 
 # Start everything and launch the TUI
 docseer            # fully Dockerized (CPU)
