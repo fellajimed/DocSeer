@@ -45,12 +45,15 @@ def test_raises_on_http_error():
     extractor = RemoteContentExtractor("http://localhost:8765")
 
     with patch("requests.post") as mock_post:
+        mock_post.return_value.ok = False
         mock_post.return_value.status_code = 503
-        mock_post.return_value.raise_for_status.side_effect = __import__(
-            "requests"
-        ).HTTPError("Service Unavailable")
+        mock_post.return_value.json.return_value = {
+            "error": "Service Unavailable"
+        }
 
-        with pytest.raises(__import__("requests").HTTPError):
+        with pytest.raises(
+            RuntimeError, match="Remote converter returned 503"
+        ):
             extractor(doc_path="paper.pdf", doc_bytes=b"data")
 
 
