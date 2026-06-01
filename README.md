@@ -61,13 +61,20 @@ That's it. No Python, Ollama, or Postgres installation needed on the host — un
 ### Using the CLI (recommended)
 
 ```bash
-# 1. Clone and install
+# Install from PyPI
+uv pip install docseer --prerelease=allow
+
+# Start everything and launch the TUI
+docseer            # fully Dockerized (CPU)
+docseer --native   # macOS Metal GPU (requires native Ollama on host)
+```
+
+Or clone and install in editable mode for development:
+
+```bash
 git clone https://github.com/fellajimed/docseer.git
 cd docseer
 uv pip install -e .
-
-# 2. Start everything and launch the TUI
-docseer
 ```
 
 One command starts all Docker services (Postgres, Redis, ChromaDB, Ollama, GROBID, Zotero, API, worker, Flower), waits for healthchecks, then opens the Textual TUI. Press `Ctrl+C` or `Ctrl+Q` to quit — services stop automatically.
