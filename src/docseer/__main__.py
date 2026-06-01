@@ -122,6 +122,8 @@ CONVERTER_PORT = 8765
 def _start_converter_server() -> subprocess.Popen[bytes]:
     """Start the Docling converter server on the host (Metal GPU accelerated)."""
     print(f"Starting Docling converter server on port {CONVERTER_PORT}...")
+    env = os.environ.copy()
+    env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -130,8 +132,9 @@ def _start_converter_server() -> subprocess.Popen[bytes]:
             "--port",
             str(CONVERTER_PORT),
         ],
+        env=env,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
     url = f"http://127.0.0.1:{CONVERTER_PORT}/health"
     deadline = time.monotonic() + 60

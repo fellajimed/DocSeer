@@ -24,7 +24,15 @@ class RemoteContentExtractor:
             files={"file": (doc_path, doc_bytes, "application/pdf")},
             timeout=self.timeout,
         )
-        response.raise_for_status()
+        if not response.ok:
+            try:
+                body = response.json()
+                detail = body.get("error", str(body))
+            except Exception:
+                detail = response.text[:500]
+            raise RuntimeError(
+                f"Remote converter returned {response.status_code}: {detail}"
+            )
         data: dict[str, Any] = response.json()
         if "error" in data:
             raise RuntimeError(f"Remote converter error: {data['error']}")

@@ -2,11 +2,30 @@ from __future__ import annotations
 
 import argparse
 import logging
-import uvicorn
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import JSONResponse
+import os
+from functools import lru_cache
 
-from .content_extractor import ContentExtractor
+# MPS doesn't support float64 ops used by docling's layout models (transformers).
+# Disable MPS detection so docling falls back to CPU, avoiding:
+#   "Cannot convert a MPS Tensor to float64 dtype"
+# CUDA is unaffected — it works fine with float64.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+import torch  # noqa: E402
+
+if torch.backends.mps.is_available():
+
+    @lru_cache(maxsize=None)
+    def _mps_unavailable() -> bool:
+        return False
+
+    torch.backends.mps.is_available = _mps_unavailable
+    setattr(torch.backends.mps, "is_built", lambda: False)
+
+import uvicorn  # noqa: E402
+from fastapi import FastAPI, UploadFile, File  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+
+from .content_extractor import ContentExtractor  # noqa: E402
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="DocSeer Docling Server")

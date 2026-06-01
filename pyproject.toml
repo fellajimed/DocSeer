@@ -62,6 +62,7 @@ docseer = ["compose/*", "ui/terminal/*.tcss"]
 
 [tool.uv]
 package = true
+prerelease = "allow"
 
 [tool.mypy]
 python_version = "3.12"

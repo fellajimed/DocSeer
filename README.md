@@ -62,7 +62,7 @@ That's it. No Python, Ollama, or Postgres installation needed on the host — un
 
 ```bash
 # Install from PyPI
-uv pip install docseer --prerelease=allow
+uv pip install docseer
 
 # Start everything and launch the TUI
 docseer            # fully Dockerized (CPU)
@@ -128,10 +128,9 @@ Ollama runs on the host using Apple Metal (GPU), giving 10–50× faster inferen
 **One-time setup:**
 
 ```bash
-# 1. Install and start Ollama — must bind to 0.0.0.0 so Docker containers
-#    can reach it via host.docker.internal:11434
+# 1. Install and start Ollama (the macOS app binds to all interfaces by default)
 brew install ollama
-OLLAMA_HOST=0.0.0.0 ollama serve
+open -a Ollama
 
 # 2. Pull the required models into the native Ollama
 make pull-models-native
