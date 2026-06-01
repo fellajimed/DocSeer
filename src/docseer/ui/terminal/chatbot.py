@@ -40,7 +40,7 @@ from textual.widgets import (
 )
 from textual.worker import Worker
 
-from utils import AsyncRequester
+from .utils import AsyncRequester
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
@@ -413,7 +413,7 @@ class ChatbotWidget(Static):
             self._pending_macro = (event.name, event.args)
             self._macro_papers(event.args)
         elif event.name == "__select__":
-            from macro_selector import MacroSelectorModal
+            from .macro_selector import MacroSelectorModal
 
             self.app.push_screen(
                 MacroSelectorModal(event.args),
@@ -435,8 +435,8 @@ class ChatbotWidget(Static):
         self._pending_macro = (macro_name, "")
 
         self._pending_macro = (macro_name, "")
-        from documents_explorer import DocumentsExplorerWidget
-        from paper_picker import PaperPickerModal
+        from .documents_explorer import DocumentsExplorerWidget
+        from .paper_picker import PaperPickerModal
 
         try:
             docs = self.app.query_one(DocumentsExplorerWidget)
@@ -492,8 +492,8 @@ class ChatbotWidget(Static):
         if macro_name is None:
             return
         self._pending_macro = (macro_name, "")
-        from documents_explorer import DocumentsExplorerWidget
-        from paper_picker import PaperPickerModal
+        from .documents_explorer import DocumentsExplorerWidget
+        from .paper_picker import PaperPickerModal
 
         try:
             docs = self.app.query_one(DocumentsExplorerWidget)
@@ -506,8 +506,8 @@ class ChatbotWidget(Static):
         )
 
     def _macro_papers(self, args: str) -> None:
-        from documents_explorer import DocumentsExplorerWidget
-        from paper_picker import PaperPickerModal
+        from .documents_explorer import DocumentsExplorerWidget
+        from .paper_picker import PaperPickerModal
 
         try:
             docs = self.app.query_one(DocumentsExplorerWidget)
@@ -525,7 +525,7 @@ class ChatbotWidget(Static):
             self._pending_macro = None
             return
 
-        from documents_explorer import DocumentsExplorerWidget
+        from .documents_explorer import DocumentsExplorerWidget
 
         pending = self._pending_macro
         if pending:
@@ -567,7 +567,7 @@ class ChatbotWidget(Static):
 
         name = f"/{action}"
 
-        from documents_explorer import DocumentsExplorerWidget, _paper_name
+        from .documents_explorer import DocumentsExplorerWidget, _paper_name
 
         try:
             docs = self.app.query_one(DocumentsExplorerWidget)
@@ -688,7 +688,7 @@ class ChatbotWidget(Static):
     @on(Button.Pressed, "#btn-clear-filter")
     def _clear_filter(self, _: Button.Pressed) -> None:
         """Clear the selection in DocumentsExplorerWidget (→ query all papers)."""
-        from documents_explorer import DocumentsExplorerWidget
+        from .documents_explorer import DocumentsExplorerWidget
 
         try:
             docs = self.app.query_one(DocumentsExplorerWidget)
@@ -727,7 +727,7 @@ class ChatbotWidget(Static):
 
         paper_ids: list[str] | None = None
         try:
-            from documents_explorer import DocumentsExplorerWidget
+            from .documents_explorer import DocumentsExplorerWidget
 
             docs = self.app.query_one(DocumentsExplorerWidget)
             if docs._selected_ids:

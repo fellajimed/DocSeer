@@ -74,7 +74,7 @@ def _compose(
     args: list[str], native: bool = False, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess:
     compose_dir = _compose_dir()
-    root = _project_root()
+    root = Path.cwd()
     cmd = [
         "docker",
         "compose",
@@ -145,12 +145,12 @@ def _start_converter_server() -> subprocess.Popen[bytes]:
         except Exception as exc:
             last_error = str(exc)
         time.sleep(0.5)
+    # Read stderr to show the actual failure reason
+    _stderr = proc.stderr.read().decode().strip() if proc.stderr else ""
     proc.terminate()
     proc.wait(timeout=5)
-    print(
-        f"Failed to start Docling converter server: {last_error}",
-        file=sys.stderr,
-    )
+    msg = _stderr or last_error
+    print(f"Failed to start Docling converter server: {msg}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -215,13 +215,9 @@ def cmd_clean(args: argparse.Namespace) -> None:
 
 
 def cmd_tui(args: argparse.Namespace) -> None:
-    root = _project_root()
-    sys.path.insert(0, str(root / "ui" / "terminal"))
-    sys.path.insert(0, str(root / "src"))
-
     logging.basicConfig(level=logging.DEBUG, handlers=[])
 
-    from main import MainApp  # ty: ignore[unresolved-import]
+    from docseer.ui.terminal.main import MainApp
 
     app = MainApp()
 

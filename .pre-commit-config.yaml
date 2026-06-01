@@ -14,12 +14,6 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: ty-ui
-        name: ty type check ui/
-        entry: uv run ty check ui/
-        language: system
-        types: [python]
-        pass_filenames: false
       - id: ty-backend
         name: ty type check backend/
         entry: uv run ty check backend/

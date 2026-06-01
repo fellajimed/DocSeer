@@ -9,11 +9,11 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, ContentSwitcher, Footer, Tab, Tabs, Label
 from textual.binding import Binding
 
-from chatbot import ChatbotWidget
-from docker_logs import DockerLogsWidget
-from documents_explorer import DocumentsExplorerWidget
-from settings_modal import THEME_FILE, SettingsModal
-from utils import AsyncRequester
+from .chatbot import ChatbotWidget
+from .docker_logs import DockerLogsWidget
+from .documents_explorer import DocumentsExplorerWidget
+from .settings_modal import THEME_FILE, SettingsModal
+from .utils import AsyncRequester
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
@@ -136,7 +136,7 @@ class MainApp(App):
     def action_pick_papers(self) -> None:
         if self.query_one(ContentSwitcher).current != "tab_chat":
             return
-        from paper_picker import PaperPickerModal
+        from .paper_picker import PaperPickerModal
 
         if isinstance(self.screen, PaperPickerModal):
             return
@@ -147,7 +147,7 @@ class MainApp(App):
         self.query_one("#tab_chat", ChatbotWidget)._macro_papers("")
 
     def action_open_macros(self) -> None:
-        from macro_selector import MacroSelectorModal
+        from .macro_selector import MacroSelectorModal
 
         if isinstance(self.screen, MacroSelectorModal):
             return
@@ -162,8 +162,8 @@ class MainApp(App):
         try:
             chatbot = self.query_one("#tab_chat", ChatbotWidget)
             chatbot._pending_macro = (macro_name, "")
-            from paper_picker import PaperPickerModal
-            from documents_explorer import DocumentsExplorerWidget
+            from .paper_picker import PaperPickerModal
+            from .documents_explorer import DocumentsExplorerWidget
 
             docs = self.app.query_one(DocumentsExplorerWidget)
             active_ids = list(docs._selected_ids)
@@ -252,7 +252,7 @@ def _stop_services() -> None:
     SERVICES list.  The TUI container itself is intentionally excluded from that
     list, so we never try to stop ourselves.
     """
-    from docker_logs import SERVICES
+    from .docker_logs import SERVICES
 
     containers = [s.container for s in SERVICES]
     print("\nStopping DocSeer services...", flush=True)

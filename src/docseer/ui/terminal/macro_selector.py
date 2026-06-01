@@ -9,7 +9,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, ListItem, ListView, Static
 
-from chatbot import MACROS as _MACROS
+from .chatbot import MACROS as _MACROS
 
 
 class MacroSelectorModal(ModalScreen[str | None]):

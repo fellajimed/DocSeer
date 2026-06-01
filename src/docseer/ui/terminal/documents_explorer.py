@@ -38,10 +38,10 @@ from textual.widgets import (
     Static,
 )
 
-from utils import AsyncRequester
-from bibtex_import_modal import BibtexImportModal
-from confirmation_modal import ConfirmationModal
-from paper_widgets import PaperListItem
+from .utils import AsyncRequester
+from .bibtex_import_modal import BibtexImportModal
+from .confirmation_modal import ConfirmationModal
+from .paper_widgets import PaperListItem
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 

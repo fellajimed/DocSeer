@@ -19,8 +19,8 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, ListView, Static
 
-from utils import AsyncRequester
-from paper_widgets import PaperListItem
+from .utils import AsyncRequester
+from .paper_widgets import PaperListItem
 
 API_URL = os.environ.get("DOCSEER_API_URL", "http://localhost:8000")
 
