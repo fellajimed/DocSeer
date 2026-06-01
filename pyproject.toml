@@ -1,6 +1,6 @@
 [project]
 name = "docseer"
-version = "0.4.1"
+version = "0.4.0"
 description = "DocSeer: RAG over research papers — FastAPI + Celery + ChromaDB + Ollama."
 authors = [
     {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
@@ -20,6 +20,7 @@ dependencies = [
     "docling>=2.46.0",
     "chromadb>=0.6.0",
     "fastapi>=0.124.2",
+    "python-multipart>=0.0.20",
     "uvicorn[standard]>=0.34.0",
     "httpx>=0.28.0",
     "pydantic>=2.11.7",
@@ -57,7 +58,7 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-docseer = ["compose/*"]
+docseer = ["compose/*", "ui/terminal/*.tcss"]
 
 [tool.uv]
 package = true

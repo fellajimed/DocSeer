@@ -4,24 +4,25 @@
 
 > **Seer**: One who perceives hidden knowledge — interpreting and revealing insights beyond the surface.
 
-![version](https://img.shields.io/badge/version-0.4.1-blue)
+[![version](https://img.shields.io/pypi/v/docseer)](https://pypi.org/project/docseer/)
+[![tests](https://github.com/fellajimed/docseer/actions/workflows/python-publish.yml/badge.svg)](https://github.com/fellajimed/docseer/actions/workflows/python-publish.yml)
 
 ---
 
 ## Screenshots
 
 ### Chat
-![Chat](screenshots/chat.png)
+![Chat](https://raw.githubusercontent.com/fellajimed/docseer/main/screenshots/chat.png)
 
 The default landing page of the TUI. Chat with your papers using natural language.
 
 ### Papers
-![Papers](screenshots/papers.png)
+![Papers](https://raw.githubusercontent.com/fellajimed/docseer/main/screenshots/papers.png)
 
 Browse, filter, and manage your paper library. Search, select, and queue papers for ingestion.
 
 ### Conversation
-![Conversation](screenshots/conversation.png)
+![Conversation](https://raw.githubusercontent.com/fellajimed/docseer/main/screenshots/conversation.png)
 
 A conversation example showing the Q&A flow with retrieved context from ingested papers.
 
