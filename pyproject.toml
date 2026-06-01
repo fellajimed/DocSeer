@@ -1,6 +1,6 @@
 [project]
 name = "docseer"
-version = "0.4.0"
+version = "0.4.2"
 description = "DocSeer: RAG over research papers — FastAPI + Celery + ChromaDB + Ollama."
 authors = [
     {name = "Mohammed Fellaji", email = "fellajimohammed@gmail.com"},
